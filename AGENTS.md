@@ -8,7 +8,7 @@ This repository is a **placeholder** for the future multi-server orchestration l
 
 ## Status
 
-Not started. No implementation work should happen here until Phase 7 (`server-leaf`) is complete
+Not started. No implementation work should happen here until Phase 3 (`server-leaf`) is complete
 and the single-server deployment is stable.
 
 ## Planned scope (future)
@@ -19,3 +19,27 @@ and the single-server deployment is stable.
 - Load balancing and failover
 
 Do not add product code to this repository at this stage.
+
+## Commit conventions
+
+Format: `type(scope): <emoji> description`
+
+| Type | Emoji | When |
+| --- | --- | --- |
+| `feat` | ✨ | New feature |
+| `fix` | 🐛 | Bug fix |
+| `docs` | 📝 | Documentation only |
+| `chore` | 🔧 | Maintenance, config |
+| `ci` | 👷 | CI/CD |
+| `revert` | ⏪ | Reverts a previous commit |
+
+### Allowed scopes
+
+| Scope | Maps to |
+| --- | --- |
+| `grove` | Top-level binary or orchestration logic |
+| `ci` | `.github/workflows/` |
+| `deps` | Dependency bumps |
+
+**Do not use a scope outside this list.** Update this table and `.vscode/settings.json`
+when implementation begins.
