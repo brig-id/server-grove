@@ -17,6 +17,9 @@ and the single-server deployment is stable.
 - Shared session state (Redis cluster)
 - Server-to-server federation
 - Load balancing and failover
+- Serving the `web` UI — same static-dist mechanism as `server-leaf`
+  (`ui_dist_dir`/SPA fallback), unless a CDN in front of the cluster makes
+  more sense at this tier; not decided yet
 
 Do not add product code to this repository at this stage.
 
