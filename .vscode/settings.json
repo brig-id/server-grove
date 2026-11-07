@@ -3,6 +3,8 @@
   "conventionalCommits.scopes": [
     "grove",
     "ci",
-    "deps"
+    "deps",
+    "ai",
+    "docs"
   ]
 }
