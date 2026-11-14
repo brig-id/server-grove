@@ -1,6 +1,7 @@
 # AGENTS.md — brig·id `server-grove`
 
-This repository is a **placeholder** for the future multi-server orchestration layer.
+This repository is the **middle edition** of the brig·id server: for a community, an
+association, a public server. It holds no code yet.
 
 ## Language
 
@@ -8,20 +9,22 @@ This repository is a **placeholder** for the future multi-server orchestration l
 
 ## Status
 
-Not started. No implementation work should happen here until Phase 3 (`server-leaf`) is complete
-and the single-server deployment is stable.
+Not started: planned for step 2 of v1. What it is is decided in `brig-id/spec`,
+[`editions.md`](https://github.com/brig-id/spec/blob/main/editions.md) §2 and §5; read it
+before writing anything here.
 
-## Planned scope (future)
+## What is decided
 
-- Multi-server coordination
-- Shared session state (Redis cluster)
-- Server-to-server federation
-- Load balancing and failover
-- Serving the `web` UI — same static-dist mechanism as `server-leaf`
-  (`ui_dist_dir`/SPA fallback), unless a CDN in front of the cluster makes
-  more sense at this tier; not decided yet
-
-Do not add product code to this repository at this stage.
+- The **same single-node engine as `server-seedling`** (SQLite) and the same functions.
+  No PostgreSQL, no Redis.
+- Delivered as a container image and a compose file; data on its own volume,
+  **continuously replicated** to a second place; metrics; defaults for a server open to
+  others (quotas, abuse controls).
+- It starts from the deployment of the project's own server.
+- A security fix reaches the three editions: what protects an account lives in `core`
+  and `crypto`, never here. This repository contains only what differs: packaging,
+  storage, listeners, operations.
+- Settings under the common prefix `BRIGID_…`; licence AGPL-3.0-or-later.
 
 ## Commit conventions
 
