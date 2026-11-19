@@ -8,7 +8,7 @@ rust-version = "1.89"
 
 [dependencies]
 # The server every edition runs (core): grove only describes itself.
-brigid-server = { git = "https://github.com/brig-id/core", rev = "47af51cf9bf1f1dabc6e21b943593e6ac8710ad7", package = "brigid-server" }
+brigid-server = { git = "https://github.com/brig-id/core", rev = "b928111f28515012273b3e7dd89300cbb927cdaf", package = "brigid-server" }
 
 clap = { version = "4", features = ["derive", "env"] }
 tokio = { version = "1", features = ["full"] }
@@ -20,7 +20,7 @@ tokio = { version = "1", features = ["full"] }
 openssl = { version = "0.10", features = ["vendored"] }
 
 [build-dependencies]
-brigid-ui-embed = { git = "https://github.com/brig-id/core", rev = "47af51cf9bf1f1dabc6e21b943593e6ac8710ad7", package = "brigid-ui-embed" }
+brigid-ui-embed = { git = "https://github.com/brig-id/core", rev = "b928111f28515012273b3e7dd89300cbb927cdaf", package = "brigid-ui-embed" }
 
 [dev-dependencies]
 tempfile = "3"
