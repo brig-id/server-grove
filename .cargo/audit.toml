@@ -1,0 +1,26 @@
+# cargo-audit configuration for brigid/server-seedling
+#
+# RUSTSEC-2023-0071: Marvin Attack in `rsa` (no fixed upgrade available).
+# Pulled in transitively by `sqlx` for the MySQL backend, which `brigid-store`
+# never enables — only `sqlx::sqlite` is used. The vulnerable code path is
+# unreachable at runtime.
+#
+# RUSTSEC-2025-0134: rustls-pemfile marked unmaintained.
+# Transitive dependency via axum-server 0.7. It is a thin wrapper around
+# rustls-pki-types PEM code with no runtime security impact. Will resolve
+# when axum-server upgrades to use rustls-pki-types directly.
+# RUSTSEC-2026-0387: timing variability in `crypto-bigint` 0.5.x (fixed in >=0.7.6).
+# Pulled in by elliptic-curve 0.13 -> ecdsa -> p256 -> jsonwebtoken, whose `rust_crypto`
+# feature compiles every algorithm. brigid-oidc only signs and verifies with
+# Algorithm::EdDSA (Ed25519), so the P-256 / ECDSA code path is never executed.
+# Revisit when brig-id/core moves to a jsonwebtoken / p256 release built on
+# elliptic-curve 0.14 (crypto-bigint >= 0.7).
+#
+# RUSTSEC-2026-0459: SQLite < 3.54 can return stale page-cache bytes when it opens a
+# database together with a crafted `-wal` file of a different page size. Bundled by
+# libsqlite3-sys 0.30 via sqlx (no sqlx release bundles >= 0.39 yet, sqlx 0.9 included).
+# seedling only opens its own database in its own volume, written by no one else: a party able
+# to plant the `-wal` file can already read and replace the database. Revisit when sqlx
+# moves to libsqlite3-sys >= 0.39.
+[advisories]
+ignore = ["RUSTSEC-2023-0071", "RUSTSEC-2025-0134", "RUSTSEC-2026-0387", "RUSTSEC-2026-0459"]

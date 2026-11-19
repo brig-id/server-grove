@@ -1,7 +1,8 @@
 # AGENTS.md — brig·id `server-grove`
 
 This repository is the **middle edition** of the brig·id server: for a community, an
-association, a public server. It holds no code yet.
+association, a public server. The server itself is **`brigid-server` in `brig-id/core`**, the
+same code seedling runs; this repository holds only what makes it grove.
 
 ## Language
 
@@ -9,9 +10,21 @@ association, a public server. It holds no code yet.
 
 ## Status
 
-Not started: planned for step 2 of v1. What it is is decided in `brig-id/spec`,
+Being built (step 2 of v1). What it is is decided in `brig-id/spec`,
 [`editions.md`](https://github.com/brig-id/spec/blob/main/editions.md) §2 and §5; read it
 before writing anything here.
+
+| Path | What |
+| --- | --- |
+| `src/main.rs` | The executable: `EDITION` (name, version, embedded interface) and `brigid_server::run` |
+| `build.rs` | Embeds the interface (`brigid-ui-embed`, `BRIGID_UI_DIST`; a release build requires it) |
+| `Dockerfile` | The image built from source (the interface from `ui/`, a checkout of brig-id/app) |
+| `deploy/` | `compose.yaml` (grove + Litestream), `litestream.yml`, `grove.env.example` |
+| `tests/edition.rs` | Starts the real binary as a container would and checks it answers as grove |
+
+Not there yet: the release jobs (static binaries, image on ghcr.io), the defaults of a server
+open to others (quotas, abuse controls: they belong in core, behind settings), moving
+helm.brig.id onto grove.
 
 ## What is decided
 
@@ -43,9 +56,10 @@ Format: `type(scope): <emoji> description`
 
 | Scope | Maps to |
 | --- | --- |
-| `grove` | Top-level binary or orchestration logic |
+| `grove` | `src/`, `build.rs`, `tests/` |
+| `docker` | `Dockerfile`, `deploy/` |
 | `ci` | `.github/workflows/` |
 | `deps` | Dependency bumps |
 
 **Do not use a scope outside this list.** Update this table and `.vscode/settings.json`
-when implementation begins.
+together.

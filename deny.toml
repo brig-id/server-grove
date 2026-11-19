@@ -1,0 +1,50 @@
+[licenses]
+allow = [
+  "MIT",
+  "Apache-2.0",
+  "Apache-2.0 WITH LLVM-exception",
+  "Unicode-DFS-2016",
+  "Unicode-3.0",
+  "ISC",
+  "BSD-3-Clause",
+  "CC0-1.0",
+  "Zlib",
+  "CDLA-Permissive-2.0",
+  "MPL-2.0",
+  "BSL-1.0",
+  # This crate's own license.
+  "AGPL-3.0-or-later",
+  # brigid-crypto.
+  "LGPL-3.0-or-later",
+]
+confidence-threshold = 0.8
+
+[advisories]
+version = 2
+yanked = "deny"
+ignore = [
+  # Marvin Attack in `rsa` (no fixed upgrade available). Pulled in transitively
+  # by `sqlx` for the MySQL backend, which `brigid-store` never enables
+  # — only `sqlx::sqlite` is used. The vulnerable code path is unreachable.
+  { id = "RUSTSEC-2023-0071", reason = "transitive via sqlx-mysql which is not enabled; unreachable code path" },
+  # Timing variability in crypto-bigint 0.5.x, pulled in by p256 via jsonwebtoken's `rust_crypto`
+  # feature; brigid-oidc only uses Algorithm::EdDSA, so the P-256 / ECDSA path is never executed.
+  # Revisit when brig-id/core moves to elliptic-curve 0.14 (crypto-bigint >= 0.7).
+  { id = "RUSTSEC-2026-0387", reason = "p256/ECDSA code path unreachable: tokens use EdDSA only" },
+  # SQLite < 3.54 stale page-cache read with a crafted `-wal` file (libsqlite3-sys 0.30 via sqlx,
+  # no sqlx release bundles >= 0.39). seedling opens only its own database in its own volume.
+  { id = "RUSTSEC-2026-0459", reason = "needs a crafted -wal next to the database; only seedling writes its volume" },
+]
+
+[bans]
+multiple-versions = "warn"
+wildcards = "warn"
+
+[sources]
+unknown-registry = "deny"
+unknown-git = "deny"
+allow-registry = ["https://github.com/rust-lang/crates.io-index"]
+allow-git = [
+  "https://github.com/brig-id/core",
+  "https://github.com/brig-id/crypto",
+]

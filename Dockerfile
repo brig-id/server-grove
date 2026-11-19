@@ -1,0 +1,166 @@
+# ---------------------------------------------------------------------------
+# brig·id grove — multi-stage production image
+#
+# Three stages:
+#   1. ui-builder  — Node.js: build the interface → dist/
+#   2. rust-builder — Rust: compile the grove binary (release), with the
+#                     interface embedded in it
+#   3. runtime     — distroless: the grove binary, and nothing else
+#
+# Prepare the UI source before building (option A — local copy):
+#   cp -r /workspaces/app ./ui   # or: ln -sf ../app ui
+#   docker build -t brigid/grove:dev .
+#
+# Named-context variant (BuildKit, recommended for CI):
+#   docker buildx build \
+#     --build-context ui-src=/path/to/brig-id-app \
+#     -t brigid/grove:dev .
+#
+# To run it: deploy/compose.yaml.
+# ---------------------------------------------------------------------------
+
+# ---------------------------------------------------------------------------
+# Stage 1 — UI Build
+# ---------------------------------------------------------------------------
+# The `ui/` directory in the build context must contain the brig-id/app
+# source (package.json, src/, public/, …). A placeholder `ui/.gitkeep` is
+# committed to the repo; populate it before running `docker build`.
+#
+# Without it (placeholder only) the image does not build: a released server
+# carries its interface, and the Rust stage refuses to compile without one.
+#
+# The interface builds from the public npm registry alone: no token, no key.
+FROM node:22-slim AS ui-builder
+WORKDIR /ui
+# Pin the pnpm version matching the app repo's packageManager field.
+ENV PNPM_HOME="/pnpm"
+ENV PATH="$PNPM_HOME:$PATH"
+RUN corepack enable
+COPY ui/ ./
+RUN if [ -f package.json ]; then \
+      pnpm install --frozen-lockfile && \
+      pnpm build; \
+    else \
+      echo "ui/ holds no interface: copy or check out brig-id/app there" >&2; \
+      exit 1; \
+    fi
+
+# ---------------------------------------------------------------------------
+# Stage 2 — Build the Rust binary
+# ---------------------------------------------------------------------------
+# Pin the builder image to an immutable digest so rebuilds are deterministic
+# and supply-chain risk from upstream tag movement is bounded. Bump the
+# digest together with the human-readable tag when upgrading Rust.
+#
+# The builder's Debian must match the runtime's (distroless cc-debian12 =
+# bookworm, glibc 2.36): the binary links against the builder's glibc, so a
+# newer one (trixie, 2.41) gives "GLIBC_2.38 not found" at startup. Always the
+# `-bookworm` variant, never the bare `-slim` tag, which follows Debian.
+FROM rust:1.89-slim-bookworm@sha256:d7fc7de78bb8c1469933aeecbf801314d30d7d6e9f0578bba4cfa285bfa37fe6 AS rust-builder
+
+WORKDIR /build
+
+# Cap parallel codegen jobs. This is a separate BuildKit build environment
+# from the devcontainer's own shell — the devcontainer's CARGO_BUILD_JOBS
+# setting (see roots/.devcontainer/devcontainer.json) does not reach here,
+# and this workspace's dependency graph (sqlx macros, tonic/prost codegen,
+# ml-kem/ml-dsa, rustls, axum, ...) can spawn enough concurrent rustc
+# processes to exhaust a host's memory during `cargo build --release`
+# below, which is a plausible trigger for host-level instability on a
+# memory-constrained Docker Desktop setup.
+ENV CARGO_BUILD_JOBS=4
+
+# Pre-create an empty, nonroot-owned /data directory to copy into the
+# runtime stage below. The distroless image has no shell, so `RUN mkdir`
+# can't happen there — and without this, a fresh named volume mounted at
+# /data inherits root:root ownership from Docker's default volume
+# initialization, which the `nonroot` runtime user (UID 65532) can't write
+# to, so SQLite fails with "unable to open database file" on first start.
+RUN mkdir -p /data
+
+# Install build-time dependencies:
+#   - pkg-config + libssl-dev: required because `webauthn-rs`'s attestation
+#     CA chain validator (`webauthn-attestation-ca`) pulls in `openssl-sys`
+#     transitively. This is the single documented OpenSSL exception to the
+#     "no OpenSSL" rule in `core/AGENTS.md` §"Hard security constraints"
+#     and is scoped to attestation chain verification only — TLS, KEM, DSA
+#     and KDF stay on rustls / RustCrypto. `Cargo.lock` does not contain
+#     `openssl-src`, so the build links against the system OpenSSL headers
+#     at compile time. The resulting binary is dynamically linked against
+#     `libssl` / `libcrypto`; the distroless runtime stage below
+#     (`gcr.io/distroless/cc-debian12`) ships matching `libssl3` /
+#     `libcrypto3` shared libraries from the same Debian 12 (bookworm) base
+#     used by `rust:1.88-slim`, so the binary loads cleanly in the final
+#     image. `rust:1.89-slim` and later move to Debian 13 (trixie) — do not
+#     bump past 1.88 without also re-checking this ABI match. If the runtime
+#     base ever drifts off Debian 12, pin
+#     `openssl = { version = "0.10", features = ["vendored"] }` in
+#     `Cargo.toml` (and add `perl`, `make` here) to statically embed
+#     OpenSSL. A bounded `0.10` requirement is mandatory: a wildcard `"*"`
+#     would trip `cargo-deny`'s `[bans].wildcards = "warn"` policy and
+#     remove version control over a security-sensitive crate.
+#   - ca-certificates: needed for `cargo` to fetch git dependencies over HTTPS
+#     during the dependency-resolution step.
+RUN apt-get update && \
+    apt-get install -y --no-install-recommends pkg-config libssl-dev ca-certificates && \
+    rm -rf /var/lib/apt/lists/*
+
+# Copy manifests first so dependency layers are cached separately from source.
+COPY Cargo.toml Cargo.lock ./
+
+# Build a dummy binary to cache all dependencies.
+RUN mkdir src && echo 'fn main() {}' > src/main.rs && \
+    cargo build --release --locked && \
+    rm -rf src
+
+# Copy real source files, and the built interface for `build.rs` to embed:
+# a release build fails without it, and without its list of script hashes.
+COPY build.rs ./
+COPY src/ ./src/
+COPY --from=ui-builder /ui/dist /ui-dist
+ENV BRIGID_UI_DIST=/ui-dist
+
+# Force recompile of the application code (preserve cached deps).
+RUN touch src/main.rs && \
+    cargo build --release --locked
+
+# ---------------------------------------------------------------------------
+# Stage 3 — Runtime (distroless, minimal attack surface)
+# ---------------------------------------------------------------------------
+# Pin runtime image to an immutable digest — same rationale as the builder:
+# deterministic rebuilds and bounded supply-chain exposure. The `cc-debian12`
+# variant ships `libssl3`/`libcrypto3` matching the `rust:1.88-slim` builder
+# above (see the libssl comment), so the dynamically-linked binary loads
+# cleanly. Re-pin whenever the runtime base is refreshed.
+#
+# This MUST be the multi-arch index digest (mediaType
+# application/vnd.oci.image.index.v1+json), not a single-platform manifest
+# digest — pinning the latter silently locks this FROM to one architecture
+# regardless of `--platform` during a multi-arch buildx build, so an arm64
+# grove binary gets copied into an amd64 base and fails at container start
+# with "exec: no such file or directory" (missing aarch64 interpreter).
+# Verify with: docker manifest inspect gcr.io/distroless/cc-debian12@sha256:<digest>
+# and check "mediaType" at the top level before trusting a re-pin.
+FROM gcr.io/distroless/cc-debian12@sha256:e5d81ddde149641e2a9ba55be4545bc125c67de07508b03ba4c22e6eb0ded5aa AS runtime
+
+# Copy the compiled binary from the Rust build stage.
+COPY --from=rust-builder /build/target/release/grove /grove
+
+# The interface is inside the binary: nothing else to copy.
+
+# Nonroot-owned mount point for the SQLite database (see the /data comment
+# in the rust-builder stage). Numeric UID:GID avoids relying on name
+# resolution across stages.
+COPY --from=rust-builder --chown=65532:65532 /data /data
+
+# Run as non-root user (UID 65532 = nonroot in distroless).
+USER nonroot:nonroot
+
+EXPOSE 8080
+
+# Liveness: the binary probes its own /health (distroless has no shell or
+# curl). Exec form, so no shell is needed. Swarm restarts an unhealthy task.
+HEALTHCHECK --interval=30s --timeout=5s --start-period=20s --retries=3 \
+  CMD ["/grove", "healthcheck"]
+
+ENTRYPOINT ["/grove"]

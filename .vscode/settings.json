@@ -2,6 +2,7 @@
   "conventionalCommits.gitmoji": true,
   "conventionalCommits.scopes": [
     "grove",
+    "docker",
     "ci",
     "deps",
     "ai",

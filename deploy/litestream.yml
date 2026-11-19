@@ -1,0 +1,40 @@
+# Continuous replication of grove's database to an S3-compatible bucket
+# (Litestream 0.5).
+#
+# Every change reaches the bucket within a minute; a full snapshot is taken
+# every day and snapshots are kept 7 days, so the database can be restored as
+# it was at any moment of the last week. The objects are encrypted by the
+# storage with our own key (SSE-C, `replica_sse_key`): without it they cannot
+# be read. The columns that hold personal data or secrets are encrypted by the
+# server's master key besides.
+#
+# The intervals keep a free tier free: at most about 65 000 write/list
+# operations a month even if the database changes every minute (Cloudflare
+# R2 gives 1 million). The price: a crash loses at most the last minute.
+#
+# The access keys come from Docker secrets, through LITESTREAM_ACCESS_KEY_ID
+# and LITESTREAM_SECRET_ACCESS_KEY (see compose.yaml); the endpoint and the
+# bucket from grove.env.
+snapshot:
+  interval: 24h
+  retention: 168h
+
+levels:
+  - interval: 10m
+  - interval: 1h
+  - interval: 24h
+
+l0-retention: 15m
+l0-retention-check-interval: 5m
+
+dbs:
+  - path: /data/brigid.db
+    replica:
+      type: s3
+      endpoint: ${REPLICA_ENDPOINT}
+      region: auto
+      bucket: ${REPLICA_BUCKET}
+      path: brigid.db
+      force-path-style: true
+      sync-interval: 1m
+      sse-customer-key-path: /run/secrets/replica_sse_key
