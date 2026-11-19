@@ -2,3 +2,10 @@
 .history
 # macOS
 .DS_Store
+
+# Build artifacts (CARGO_TARGET_DIR redirects to /cargo-target volume)
+/target
+
+# Secrets and settings of a deployment (deploy/compose.yaml)
+/deploy/secrets/
+/deploy/grove.env

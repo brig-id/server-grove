@@ -1,0 +1,35 @@
+[package]
+name = "grove"
+version = "0.1.0"
+edition = "2024"
+license = "AGPL-3.0-or-later"
+publish = false
+rust-version = "1.89"
+
+[dependencies]
+# The server every edition runs (core): grove only describes itself.
+brigid-server = { git = "https://github.com/brig-id/core", rev = "47af51cf9bf1f1dabc6e21b943593e6ac8710ad7", package = "brigid-server" }
+
+clap = { version = "4", features = ["derive", "env"] }
+tokio = { version = "1", features = ["full"] }
+
+# A static (musl) build carries its own OpenSSL: the system's is not there to
+# link to. OpenSSL is reached only by the attestation code of webauthn-rs,
+# which brig·id never runs (attestation "none").
+[target.'cfg(target_env = "musl")'.dependencies]
+openssl = { version = "0.10", features = ["vendored"] }
+
+[build-dependencies]
+brigid-ui-embed = { git = "https://github.com/brig-id/core", rev = "47af51cf9bf1f1dabc6e21b943593e6ac8710ad7", package = "brigid-ui-embed" }
+
+[dev-dependencies]
+tempfile = "3"
+
+[profile.release]
+panic = "abort"
+lto = "thin"
+codegen-units = 1
+strip = "debuginfo"
+
+[profile.dev]
+panic = "abort"

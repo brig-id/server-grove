@@ -3,8 +3,23 @@
 **grove** is the middle edition of the [brig·id](https://brig.id) server: for a community, an
 association, a public server. One machine, looked after by a volunteer or a small team.
 
-It is **not built yet**. It is planned for step 2 of v1
-([`editions.md`](https://github.com/brig-id/spec/blob/main/editions.md)).
+It is **being built** (step 2 of v1,
+[`editions.md`](https://github.com/brig-id/spec/blob/main/editions.md)): the server runs and
+its compose file replicates the database, but there is no release yet.
+
+## Try it
+
+```sh
+git clone https://github.com/brig-id/app ui     # the interface, embedded at build time
+docker build -t brigid/grove:dev .
+cp deploy/grove.env.example deploy/grove.env    # the domain, the bucket of the replica
+# the four secrets: see the top of deploy/compose.yaml
+docker compose -f deploy/compose.yaml --env-file deploy/grove.env up -d
+```
+
+A reverse proxy in front holds the certificate and forwards to `127.0.0.1:8080`. The first
+start prints the setup link of the first administrator (`docker compose logs grove`), and
+`docker compose exec grove /grove admin link` makes a new one.
 
 ## What is decided
 
