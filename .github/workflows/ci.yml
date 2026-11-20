@@ -3,15 +3,20 @@ name: CI
 on:
   push:
     branches: [main, "dev/*"]
+    tags: ["v*"]
   pull_request:
     branches: [main, "dev/*"]
 
+# Least privilege by default; the release jobs widen it for themselves.
 permissions:
   contents: read
 
-# fmt, clippy, tests and the audits, as for every Rust repository of the org.
-# The release jobs (static binaries, the image on ghcr.io) come with the
-# first release of grove, on the model of server-seedling's.
+env:
+  # The interface embedded in the server: brig-id/app at this commit. Pinned
+  # so that two builds of the same server commit embed the same interface.
+  # Bump deliberately when the app ships a change meant to land here.
+  APP_REF: 49c64d53166fa6fa30a5b7212d5aa3b4dcb5dfea # v0.7.0 @ 2026-11-17 (the version on the About page)
+
 jobs:
   ci:
     uses: brig-id/.github/.github/workflows/ci-rust.yml@5e019131d735e4ed0bd3598b5a61137bdae7eff3
@@ -22,3 +27,343 @@ jobs:
     uses: brig-id/.github/.github/workflows/security-audit.yml@5e019131d735e4ed0bd3598b5a61137bdae7eff3
     with:
       working-directory: .
+
+  docker:
+    # Its own job, not a reusable workflow of brig-id/.github: checks that
+    # the production Dockerfile still builds with the real interface
+    # (brig-id/app) embedded, not just the ui/.gitkeep placeholder. The
+    # interface builds from the public npm registry, with no secret.
+    # Build-only: nothing is pushed here.
+    name: Docker build (grove + app UI embedded)
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:
+      - name: Checkout server-grove
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: Checkout app (Qwik UI)
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+          repository: brig-id/app
+          ref: ${{ env.APP_REF }}
+          path: ui
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@f87e5991a6d7451dcb8d9637bfbc97413f497069 # v4.4.1
+
+      - name: Build image
+        uses: docker/build-push-action@c3c9e263c25d99ce0380d002d59b67737d91b0dc # v7.4.0
+        with:
+          context: .
+          push: false
+          load: true
+          tags: grove:ci
+
+      - name: The image starts and serves its interface
+        run: scripts/check-image.sh grove:ci
+
+  # -- The release: static binaries, and the image made of them -------------
+
+  ui:
+    # The interface, built once for both binaries.
+    name: Interface (brig-id/app)
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout app
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+          repository: brig-id/app
+          ref: ${{ env.APP_REF }}
+          path: ui
+
+      - uses: helpers4/action/setup-pnpm@6fddd178620e7325d446a246c38a44f979569fc4 # main @ 2026-07-29
+        with:
+          node-version: "24"
+          working-directory: ui
+
+      - name: Build
+        working-directory: ui
+        run: pnpm build
+
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: ui-dist
+          path: ui/dist/
+          if-no-files-found: error
+
+  binaries:
+    # Static (musl) executables, each built natively on its own
+    # architecture: they link nothing, so they run on any Linux, with or
+    # without a C library or OpenSSL (vendored, Cargo.toml).
+    name: Static binary (${{ matrix.arch }})
+    needs: ui
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - arch: x86_64
+            docker: amd64
+            runner: ubuntu-latest
+          - arch: aarch64
+            docker: arm64
+            runner: ubuntu-24.04-arm
+    runs-on: ${{ matrix.runner }}
+    env:
+      TARGET: ${{ matrix.arch }}-unknown-linux-musl
+    steps:
+      - name: Checkout server-grove
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
+        with:
+          name: ui-dist
+          path: ui-dist
+
+      - name: Install Rust stable
+        uses: dtolnay/rust-toolchain@683b588c487a69d01f6c6ddf40f036ff682cc2c8 # master @ 2026-08-05
+        with:
+          toolchain: stable
+          targets: ${{ env.TARGET }}
+
+      - name: Install the musl toolchain
+        run: sudo apt-get update -qq && sudo apt-get install -y -qq musl-tools
+
+      - name: Cache cargo
+        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: |
+            ~/.cargo/registry
+            ~/.cargo/git
+            target
+          key: ${{ runner.os }}-${{ matrix.arch }}-musl-${{ hashFiles('Cargo.lock') }}
+          restore-keys: ${{ runner.os }}-${{ matrix.arch }}-musl-
+
+      - name: Build
+        env:
+          BRIGID_UI_DIST: ${{ github.workspace }}/ui-dist
+        run: |
+          export "CC_$(echo "$TARGET" | tr '-' '_')=musl-gcc"
+          cargo build --release --locked --target "$TARGET"
+          mkdir -p out
+          cp "target/$TARGET/release/grove" out/grove
+
+      - name: It is static, says its version, and runs where nothing else is
+        run: |
+          file out/grove
+          file out/grove | grep -Eq "static(-pie)? linked|statically linked"
+          version=$(sed -n 's/^version = "\(.*\)"$/\1/p' Cargo.toml | sed -n 1p)
+          test "$(out/grove --version)" = "grove $version"
+          # Alpine: musl, and no OpenSSL. A server there answers. As an
+          # ordinary user: grove refuses to run as root.
+          docker run -d --name bare --user 65532:65532 -p 18080:8080 -v "$PWD/out:/b:ro" \
+            -e BRIGID_MASTER_KEY=0f1e2d3c4b5a69788796a5b4c3d2e1f00f1e2d3c4b5a69788796a5b4c3d2e1f0 \
+            -e BRIGID_SERVER__DOMAIN=localhost -e BRIGID_SERVER__HOST=0.0.0.0 \
+            -e BRIGID_DATABASE__PATH=/tmp/brigid.db \
+            alpine:3.22 /b/grove
+          for _ in $(seq 1 30); do curl -fsS http://localhost:18080/health > /dev/null 2>&1 && break; sleep 1; done
+          curl -fsS http://localhost:18080/health || { docker logs bare; exit 1; }
+          docker exec bare sh -c 'ls /usr/lib/libssl* /lib/libssl* 2>/dev/null' && { echo "OpenSSL is in the image after all"; exit 1; }
+          docker rm -f bare
+
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: grove-${{ matrix.docker }}
+          path: out/grove
+          if-no-files-found: error
+
+  image:
+    # The released image, made of the two binaries above: built on every
+    # change, so that a tag never meets it for the first time.
+    name: Release image (from the static binaries)
+    needs: binaries
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout server-grove
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: The binaries
+        uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
+        with:
+          pattern: grove-*
+          path: artifacts
+
+      - name: The build context
+        run: |
+          mkdir -p bin/data
+          for arch in amd64 arm64; do
+            cp "artifacts/grove-$arch/grove" "bin/grove-$arch"
+          done
+          ls -la bin
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@f87e5991a6d7451dcb8d9637bfbc97413f497069 # v4.4.1
+
+      - name: Build (amd64, to run it)
+        uses: docker/build-push-action@c3c9e263c25d99ce0380d002d59b67737d91b0dc # v7.4.0
+        with:
+          context: .
+          file: Dockerfile.release
+          platforms: linux/amd64
+          load: true
+          tags: grove:release
+
+      - name: The image starts and serves its interface
+        run: scripts/check-image.sh grove:release
+
+      - name: Build (both architectures)
+        uses: docker/build-push-action@c3c9e263c25d99ce0380d002d59b67737d91b0dc # v7.4.0
+        with:
+          context: .
+          file: Dockerfile.release
+          platforms: linux/amd64,linux/arm64
+          push: false
+
+  # Runs only on a `vX.Y.Z` tag push: the GitHub release with its files, and
+  # the image the VM deploys. Both are made of the same two binaries.
+  release:
+    if: startsWith(github.ref, 'refs/tags/v')
+    name: GitHub release (binaries, sums, SBOM, provenance)
+    needs: [binaries, image]
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+      id-token: write
+      attestations: write
+    steps:
+      - name: Checkout server-grove
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+          # Full history, so the step below can tell whether the tag is on main.
+          fetch-depth: 0
+
+      - name: Refuse a tag that is not on main
+        # The VM deploys the highest vX.Y.Z image on its own: a release must
+        # only ever be built from a commit that went through main.
+        run: git merge-base --is-ancestor "$GITHUB_SHA" origin/main
+
+      - name: The binaries
+        uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
+        with:
+          pattern: grove-*
+          path: artifacts
+
+
+      - name: The files
+        run: |
+          mkdir -p release
+          for pair in amd64:x86_64 arm64:aarch64; do
+            # No version in the name: releases/latest/download/<name> is then
+            # always the newest, which is how docs/install.md installs and
+            # updates.
+            cp "artifacts/grove-${pair%%:*}/grove" "release/grove-linux-${pair##*:}"
+          done
+          chmod 755 release/*
+          (cd release && sha256sum grove-* > SHA256SUMS)
+          cat release/SHA256SUMS
+
+      - name: SBOM (what the binaries are made of)
+        uses: anchore/sbom-action@66cbf4bc1f1c0d2edc94016e65bc221b6bb0ad6c # v0.24.3
+        with:
+          path: .
+          format: spdx-json
+          output-file: release/grove.spdx.json
+          upload-artifact: false
+          upload-release-assets: false
+
+      - name: Provenance
+        uses: actions/attest-build-provenance@4d101475d8b20a2381f78447822ac1eab6504dd8 # v4.2.2
+        with:
+          subject-path: release/grove-linux-*
+
+      - name: Publish
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          version="${GITHUB_REF_NAME#v}"
+          # The changelog's section of this version.
+          awk -v v="$version" '
+            $0 ~ "^## \\[" v "\\]" { on = 1; next }
+            on && /^## \[/ { exit }
+            on { print }
+          ' CHANGELOG.md > notes.md
+          {
+            echo
+            echo "Each binary runs on any Linux of its architecture: it links nothing."
+            echo "Check it with \`sha256sum -c SHA256SUMS\` and \`gh attestation verify <file> --repo $GITHUB_REPOSITORY\`."
+          } >> notes.md
+          if gh release view "$GITHUB_REF_NAME" > /dev/null 2>&1; then
+            gh release upload "$GITHUB_REF_NAME" release/* --clobber
+          else
+            gh release create "$GITHUB_REF_NAME" release/* --verify-tag \
+              --title "grove $version" --notes-file notes.md
+          fi
+
+  docker-release:
+    if: startsWith(github.ref, 'refs/tags/v')
+    name: Docker release (push, multi-arch)
+    needs: [binaries, image]
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: write
+    steps:
+      - name: Checkout server-grove
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+          # Full history, so the step below can tell whether the tag is on main.
+          fetch-depth: 0
+
+
+      - name: Refuse a tag that is not on main
+        # The VM deploys the highest vX.Y.Z image on its own: a release must
+        # only ever be built from a commit that went through main.
+        run: git merge-base --is-ancestor "$GITHUB_SHA" origin/main
+
+
+      - name: The binaries
+        uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
+        with:
+          pattern: grove-*
+          path: artifacts
+
+
+      - name: The build context
+        run: |
+          mkdir -p bin/data
+          for arch in amd64 arm64; do
+            cp "artifacts/grove-$arch/grove" "bin/grove-$arch"
+          done
+          ls -la bin
+
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@f87e5991a6d7451dcb8d9637bfbc97413f497069 # v4.4.1
+
+      - name: Log in to GitHub Container Registry
+        uses: docker/login-action@8aa5831fb8d48d8f76594c7ddde61ae58019f550 # v4.8.0
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Build and push image
+        uses: docker/build-push-action@c3c9e263c25d99ce0380d002d59b67737d91b0dc # v7.4.0
+        with:
+          context: .
+          file: Dockerfile.release
+          push: true
+          platforms: linux/amd64,linux/arm64
+          tags: |
+            ghcr.io/brig-id/grove:${{ github.ref_name }}
+            ghcr.io/brig-id/grove:latest
