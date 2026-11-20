@@ -12,6 +12,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 - **grove runs the shared server** (`brigid-server`, from core), as seedling does: same
   functions, administration included. No configuration file of its own: a container is
   configured by `BRIGID_*` and gets its master key from a mounted secret.
+- **Websites with no registration** (core#113): a website that publishes a document
+  describing itself signs people in with no step on the server; `grove client policy`,
+  `accept`, `refuse` and `unlist` say which ones the server accepts (`open` by default).
 - `deploy/compose.yaml`: grove behind a reverse proxy, with Litestream replicating its
   database continuously to an S3-compatible bucket (SSE-C).
 - Releases: static binaries for x86_64 and aarch64 (SHA256SUMS, SBOM, provenance) and the
