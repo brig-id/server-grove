@@ -19,11 +19,14 @@ before writing anything here.
 | `src/main.rs` | The executable: `EDITION` (name, version, embedded interface) and `brigid_server::run` |
 | `build.rs` | Embeds the interface (`brigid-ui-embed`, `BRIGID_UI_DIST`; a release build requires it) |
 | `Dockerfile` | The image built from source (the interface from `ui/`, a checkout of brig-id/app) |
+| `Dockerfile.release` | The released image: the static binaries of the release, on distroless/static |
+| `scripts/check-image.sh` | Starts an image and checks it serves its interface |
+| `.github/workflows/ci.yml` | fmt, clippy, tests, audits; the image from source; the static binaries (x86_64, aarch64); on a tag `v*` on main: the GitHub release (binaries, sums, SBOM, provenance) and `ghcr.io/brig-id/grove` |
 | `deploy/` | `compose.yaml` (grove + Litestream), `litestream.yml`, `grove.env.example` |
 | `tests/edition.rs` | Starts the real binary as a container would and checks it answers as grove |
 
-Not there yet: the release jobs (static binaries, image on ghcr.io), the defaults of a server
-open to others (quotas, abuse controls: they belong in core, behind settings), moving
+Releases are made as seedling's: the version in `Cargo.toml` and the CHANGELOG's section, then
+an annotated tag `vX.Y.Z` on main. Not there yet: the defaults of a server open to others (quotas, abuse controls: they belong in core, behind settings), moving
 helm.brig.id onto grove.
 
 ## What is decided

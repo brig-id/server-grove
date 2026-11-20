@@ -5,9 +5,13 @@ association, a public server. One machine, looked after by a volunteer or a smal
 
 It is **being built** (step 2 of v1,
 [`editions.md`](https://github.com/brig-id/spec/blob/main/editions.md)): the server runs and
-its compose file replicates the database, but there is no release yet.
+its compose file replicates the database. Its first release publishes the image
+`ghcr.io/brig-id/grove` and static binaries.
 
 ## Try it
+
+Once released, `GROVE_IMAGE=ghcr.io/brig-id/grove:vX.Y.Z` in `deploy/grove.env`. Until then, or
+to run the code of a branch, build the image:
 
 ```sh
 git clone https://github.com/brig-id/app ui     # the interface, embedded at build time

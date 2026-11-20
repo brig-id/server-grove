@@ -1,0 +1,39 @@
+# ---------------------------------------------------------------------------
+# brig·id grove — the released image
+#
+# The static binary of the release (built by the `binaries` job of
+# .github/workflows/ci.yml, the same file attached to the GitHub release),
+# and nothing else: no shell, no C library, no OpenSSL. The binary carries
+# the interface and links nothing.
+#
+# The build context holds:
+#   bin/grove-amd64, bin/grove-arm64   the two binaries
+#   bin/data/                                an empty directory
+#
+#   docker buildx build -f Dockerfile.release --platform linux/amd64,linux/arm64 .
+#
+# Nothing runs in the image while it is built (COPY only), so an arm64 image
+# needs no emulation. To build the server from source instead: Dockerfile.
+# ---------------------------------------------------------------------------
+
+# distroless/static: certificates, /etc/passwd with nonroot, tzdata; no
+# libraries. Pinned to the multi-arch index digest (not one platform's: that
+# would put an amd64 base under an arm64 binary).
+FROM gcr.io/distroless/static-debian12@sha256:afa5c872c891853ca7fcf1f12c3edb23f7eeef36189728842dd51042ff57f7ab
+
+ARG TARGETARCH
+
+COPY --chmod=0755 bin/grove-${TARGETARCH} /grove
+
+# The mount point of the database, owned by nonroot (UID 65532).
+COPY --chown=65532:65532 bin/data/ /data/
+
+USER nonroot:nonroot
+
+EXPOSE 8080
+
+# Liveness: the binary probes its own /health (there is no shell or curl).
+HEALTHCHECK --interval=30s --timeout=5s --start-period=20s --retries=3 \
+  CMD ["/grove", "healthcheck"]
+
+ENTRYPOINT ["/grove"]
