@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+## [0.1.0] - 2026-11-20
+
 ### Added
 
 - **grove runs the shared server** (`brigid-server`, from core), as seedling does: same
@@ -19,3 +21,4 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
   database continuously to an S3-compatible bucket (SSE-C).
 - Releases: static binaries for x86_64 and aarch64 (SHA256SUMS, SBOM, provenance) and the
   image `ghcr.io/brig-id/grove`, built from those binaries on distroless/static.
+- The interface embedded is brig-id/app 0.9.0.

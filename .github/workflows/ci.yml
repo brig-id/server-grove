@@ -15,7 +15,7 @@ env:
   # The interface embedded in the server: brig-id/app at this commit. Pinned
   # so that two builds of the same server commit embed the same interface.
   # Bump deliberately when the app ships a change meant to land here.
-  APP_REF: 49c64d53166fa6fa30a5b7212d5aa3b4dcb5dfea # v0.7.0 @ 2026-11-17 (the version on the About page)
+  APP_REF: e3806500bccc463b81a0c3dbb7eb50b66275f1b4 # v0.9.0 @ 2026-11-20 (the site named by its address)
 
 jobs:
   ci:
