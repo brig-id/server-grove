@@ -7,6 +7,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+### Changed
+
+- Core at main: one less library of cryptography in C (ring), the master key's sealed
+  form for the editions that use one (not grove: its key is a mounted secret), `url` 2.5.9
+  (RUSTSEC-2026-0592).
+
 ## [0.1.0] - 2026-11-20
 
 ### Added
