@@ -27,6 +27,8 @@ const EDITION: brigid_server::Edition = brigid_server::Edition {
     // its key from a mounted secret (`BRIGID_MASTER_KEY_FILE`).
     config_path: None,
     key_path: None,
+    // A container's key is a mounted secret: never sealed by a machine.
+    sealed_key_path: None,
     key_hint: " (with Docker: a secret, and BRIGID_MASTER_KEY_FILE=/run/secrets/<its name>)",
     root_hint: ": the image runs it as nonroot (65532).",
 };
