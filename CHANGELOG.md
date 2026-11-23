@@ -7,6 +7,18 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+## [0.3.0] - 2026-11-23
+
+### Added
+
+- **The interface 0.11.0**: a menu under each section (each identity, Compare, New
+  identity); the brig·id mark and, for an administrator, two pills to switch between the
+  account and the administration; About in both menus. A new identity has a page of its
+  own: an archetype in one click, or a form by hand. An identity's page has three tabs
+  (Summary with suggestions, My information, Usage). Compare warns that the same value in
+  two identities helps data brokers match them.
+- **21 archetypes in four groups** (core#121): everyday, work and studies, leisure, online.
+
 ## [0.2.0] - 2026-11-23
 
 ### Added
