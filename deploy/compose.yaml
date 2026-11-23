@@ -15,8 +15,9 @@
 # - litestream: copies every change of the database to an S3-compatible
 #   bucket within a minute, a week of history (litestream.yml).
 #
-# Image: build it from this repository (`docker build -t brigid/grove:dev .`)
-# until grove is released on ghcr.io; then pin it by digest in GROVE_IMAGE.
+# Image: a release, pinned by digest in GROVE_IMAGE
+# (ghcr.io/brig-id/grove:vX.Y.Z@sha256:…), or one built from this repository
+# (`docker build -t brigid/grove:dev .`).
 
 secrets:
   brigid_master_key:

@@ -7,6 +7,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+## [0.2.0] - 2026-11-23
+
+### Added
+
+- **Websites with no registration, from the administration** (core#114): which websites that
+  describe themselves are accepted, what they may ask for at most, the accepted and refused
+  lists; `grove client limit` on the command line.
+- **The interface 0.10.0**: identities as cards in their own colour, renamed and deleted from
+  their own page; Compare, the identities side by side; the administration as a place of its
+  own.
+
 ### Changed
 
 - Core at main: one less library of cryptography in C (ring), the master key's sealed
