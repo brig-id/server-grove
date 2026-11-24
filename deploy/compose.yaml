@@ -52,7 +52,6 @@ services:
       BRIGID_SERVER__PORT: "8080"
       BRIGID_SERVER__METRICS_PORT: "9100"
       BRIGID_DATABASE__PATH: "/data/brigid.db"
-      BRIGID_SECURITY__CORS_ORIGINS: '["https://${BRIGID_DOMAIN}"]'
       BRIGID_SECURITY__TRUST_FORWARDED_FOR: "true"
     ports:
       # Your reverse proxy forwards to it; bound to this machine only.
