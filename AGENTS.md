@@ -25,8 +25,7 @@ before writing anything here.
 | `deploy/` | `compose.yaml` (grove + Litestream), `litestream.yml`, `grove.env.example` |
 | `tests/edition.rs` | Starts the real binary as a container would and checks it answers as grove |
 
-Releases are made as seedling's: the version in `Cargo.toml` and the CHANGELOG's section, then
-an annotated tag `vX.Y.Z` on main. Not there yet: the defaults of a server open to others (quotas, abuse controls: they belong in core, behind settings), moving
+Releases are made as seedling's (see "Releases" below). Not there yet: the defaults of a server open to others (quotas, abuse controls: they belong in core, behind settings), moving
 helm.brig.id onto grove.
 
 ## What is decided
@@ -41,6 +40,24 @@ helm.brig.id onto grove.
   and `crypto`, never here. This repository contains only what differs: packaging,
   storage, listeners, operations.
 - Settings under the common prefix `BRIGID_…`; licence AGPL-3.0-or-later.
+
+## Releases
+
+Nobody tags by hand and nobody writes the changelog. `.github/workflows/release.yml`
+(release-please, through the shared workflow of brig-id/.github) keeps a release pull
+request up to date: the next version and its `CHANGELOG.md` entry, from the commits
+since the last release. **Merging that pull request is the release**: release-please
+creates the tag `vX.Y.Z` and the GitHub Release, then starts `ci.yml` on the tag, whose
+tag-only jobs add the static binaries and push `ghcr.io/brig-id/grove`. So:
+
+- the core, crypto and the interface are pinned by tag (`tag = "vX.Y.Z"`, and `APP_REF`
+  with its tag beside it); Renovate proposes their new releases in one pull request,
+  `feat(deps)` or `fix(deps)`, and merging it is what opens the next release here;
+- the commit type decides the version: `feat` is a minor, `fix` a patch, a `!` or a
+  `BREAKING CHANGE:` footer a minor too while the version is 0.x;
+- the commit subject is the changelog line: write it for someone reading the release;
+- do not edit `CHANGELOG.md`, `.release-please-manifest.json` or the version in
+  `Cargo.toml` by hand.
 
 ## Commit conventions
 
@@ -63,6 +80,7 @@ Format: `type(scope): <emoji> description`
 | `docker` | `Dockerfile`, `deploy/` |
 | `ci` | `.github/workflows/` |
 | `deps` | Dependency bumps |
+| `release` | A release pull request (release-please) |
 
 **Do not use a scope outside this list.** Update this table and `.vscode/settings.json`
 together.
