@@ -206,7 +206,8 @@ if restore > "$work/again" 2>&1; then
   echo "✗ a second restore wrote over the database"
   exit 1
 fi
-echo "✓ a second restore refuses: $(tail -n 1 "$work/again")"
+echo "✓ a second restore refuses:"
+grep -v -e '^ *$' -e 'level=warning' -e 'Container ' "$work/again" | sed 's/^/    /' || true
 usage=$(compose run --rm --no-deps -T --entrypoint litestream litestream restore -h 2>&1 || true)
 grep -q -- '-timestamp' <<< "$usage" || { echo "$usage"; echo "✗ litestream restore has no -timestamp"; exit 1; }
 
@@ -248,10 +249,22 @@ echo "$claim" | grep -q "^$ORIGIN/admin/claim/#link=" || {
   exit 1
 }
 
-step "Litestream replicates the restored database"
-sleep 5
-test "$(compose ps --status running --services | grep -c '^litestream$')" -eq 1
-compose logs --no-color litestream | tail -n 20
+step "Litestream replicates the restored database: a change, and a second restore beside it"
+grove client add --name "After the restore" --redirect-uri https://after.example.org/callback
+compose exec -T litestream sqlite3 /data/brigid.db .dump | dump > "$work/later.sql"
+sleep 90
+compose run --rm --no-deps -T --entrypoint /bin/sh litestream -c '
+  LITESTREAM_ACCESS_KEY_ID="$(cat /run/secrets/replica_key_id)" \
+  LITESTREAM_SECRET_ACCESS_KEY="$(cat /run/secrets/replica_secret)" \
+  litestream restore -config /etc/litestream.yml -o /tmp/check.db /data/brigid.db > /dev/null &&
+  sqlite3 /tmp/check.db .dump' | dump > "$work/replica.sql"
+if ! cmp -s "$work/later.sql" "$work/replica.sql"; then
+  echo "✗ the replica does not hold the change made after the restore:"
+  diff "$work/later.sql" "$work/replica.sql" | cut -c 1-200 | head -n 40
+  compose logs --no-color litestream | tail -n 30
+  exit 1
+fi
+echo "✓ the change made after the restore is in the replica"
 
 echo
 echo "✓ grove restored from its replica: the same database, the same server, the same account"
