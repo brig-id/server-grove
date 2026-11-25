@@ -56,7 +56,7 @@ RUN if [ -f package.json ]; then \
 # bookworm, glibc 2.36): the binary links against the builder's glibc, so a
 # newer one (trixie, 2.41) gives "GLIBC_2.38 not found" at startup. Always the
 # `-bookworm` variant, never the bare `-slim` tag, which follows Debian.
-FROM rust:1.89-slim-bookworm@sha256:d7fc7de78bb8c1469933aeecbf801314d30d7d6e9f0578bba4cfa285bfa37fe6 AS rust-builder
+FROM rust:1.94-slim-bookworm@sha256:cf9dd0ec73e75f827fe59123fff9dc65af1a1c8363c3c31ee8d7f8ad0b6a5fb2 AS rust-builder
 
 WORKDIR /build
 
