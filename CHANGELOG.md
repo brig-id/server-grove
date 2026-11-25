@@ -7,11 +7,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+## [0.4.0] - 2026-11-25
+
 ### Changed
 
 - Core at main (core#122, core#123): a certificate the server obtains itself (ACME) for an
   edition without a proxy; no identity templates, no username at sign-up or sign-in, no
   `security.cors_origins`. The interface at app main (app#94), which keeps the archetypes.
+- Core at c2ad77d (sqlx 0.9; every query of the store is fixed at compile time).
 - `deploy/compose.yaml` no longer sets `BRIGID_SECURITY__CORS_ORIGINS`: the interface is the
   server's own. A deployment that still sets it starts as before.
 
