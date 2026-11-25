@@ -24,6 +24,9 @@ before writing anything here.
 | `.github/workflows/ci.yml` | fmt, clippy, tests, audits; the image from source; the static binaries (x86_64, aarch64); on a tag `v*` on main: the GitHub release (binaries, sums, SBOM, provenance) and `ghcr.io/brig-id/grove` |
 | `deploy/` | `compose.yaml` (grove + Litestream), `litestream.yml`, `grove.env.example` |
 | `tests/edition.rs` | Starts the real binary as a container would and checks it answers as grove |
+| `tests/restore/` | `run.sh`: deploys `deploy/compose.yaml` (with a bucket and a proxy, `compose.yaml`), fills it (`account.cjs`: a passkey in Chromium), destroys the volume, restores it as `docs/restore.md` says, compares |
+| `.github/workflows/restore.yml` | Builds the image and runs `tests/restore/run.sh` |
+| `docs/restore.md` | The restore from the replica, and the move from seedling |
 
 Releases are made as seedling's (see "Releases" below). Not there yet: the defaults of a server open to others (quotas, abuse controls: they belong in core, behind settings), moving
 helm.brig.id onto grove.
