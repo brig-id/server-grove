@@ -15,10 +15,11 @@ permissions:
   contents: read
 
 env:
-  # The interface embedded in the server: brig-id/app at this commit. Pinned
-  # so that two builds of the same server commit embed the same interface.
-  # Bump deliberately when the app ships a change meant to land here.
-  APP_REF: 9ee1110f49e93d705095d2aa2b1717581c400b1e # main @ 2026-11-24 (app#94: the archetypes are the interface's, as core 8558f70 needs)
+  # The interface embedded in the server: brig-id/app at a release, its tag
+  # and its commit together, so that two builds of the same server commit
+  # embed the same interface. Renovate proposes each new release.
+  # renovate: datasource=github-tags depName=brig-id/app
+  APP_REF: a6fbc98615825c8830ad9af36471acc3126e87c9 # v0.11.1
 
 jobs:
   ci:
