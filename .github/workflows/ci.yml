@@ -6,6 +6,9 @@ on:
     tags: ["v*"]
   pull_request:
     branches: [main, "dev/*"]
+  # Started by the release workflow: on the release pull request, and on the
+  # tag it has just created (a tag pushed by the workflow token starts nothing).
+  workflow_dispatch:
 
 # Least privilege by default; the release jobs widen it for themselves.
 permissions:
@@ -290,20 +293,26 @@ jobs:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
           version="${GITHUB_REF_NAME#v}"
-          # The changelog's section of this version.
-          awk -v v="$version" '
-            $0 ~ "^## \\[" v "\\]" { on = 1; next }
-            on && /^## \[/ { exit }
-            on { print }
-          ' CHANGELOG.md > notes.md
           {
             echo
             echo "Each binary runs on any Linux of its architecture: it links nothing."
             echo "Check it with \`sha256sum -c SHA256SUMS\` and \`gh attestation verify <file> --repo $GITHUB_REPOSITORY\`."
-          } >> notes.md
+          } > check.md
           if gh release view "$GITHUB_REF_NAME" > /dev/null 2>&1; then
+            # Created by release-please, with the changelog entry as its notes:
+            # add the files, the edition's name and how to check them.
+            gh release view "$GITHUB_REF_NAME" --json body --jq .body > notes.md
+            grep -q "it links nothing" notes.md || cat check.md >> notes.md
             gh release upload "$GITHUB_REF_NAME" release/* --clobber
+            gh release edit "$GITHUB_REF_NAME" --title "grove $version" --notes-file notes.md
           else
+            # A tag pushed by hand: the notes are the changelog's section.
+            awk -v v="$version" '
+              $0 ~ "^## \\[" v "\\]" { on = 1; next }
+              on && /^## \[/ { exit }
+              on { print }
+            ' CHANGELOG.md > notes.md
+            cat check.md >> notes.md
             gh release create "$GITHUB_REF_NAME" release/* --verify-tag \
               --title "grove $version" --notes-file notes.md
           fi
