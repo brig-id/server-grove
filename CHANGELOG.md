@@ -7,6 +7,13 @@ of the Conventional Commits of the release; the entries up to 0.4.0 were written
 the [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) format. This project adheres
 to [Semantic Versioning](https://semver.org/).
 
+## [0.5.0](https://github.com/brig-id/server-grove/compare/v0.4.0...v0.5.0) (2026-11-25)
+
+
+### Features
+
+* **deps:** ✨ bring in core v0.3.0 and the interface v0.11.1 ([baaad22](https://github.com/brig-id/server-grove/commit/baaad22466b70bf5a3673010e2a762a2868d3c8e))
+
 ## [0.4.0] - 2026-11-25
 
 ### Changed
