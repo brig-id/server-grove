@@ -9,7 +9,8 @@
 #
 # Run from a checkout with no deploy/grove.env and no deploy/secrets/: the
 # test writes both, as an operator would, with secrets of its own. It needs
-# Docker with Compose, curl, openssl, the image GROVE_IMAGE (by default
+# sudo (to give the secrets to the services' user, as an operator does),
+# Docker with Compose, curl, openssl, jq, the image GROVE_IMAGE (by default
 # brigid/grove:dev, `docker build -t brigid/grove:dev .`), and Playwright with
 # Chromium (PLAYWRIGHT_MODULE: see tests/restore/account.cjs). CI runs it:
 # .github/workflows/restore.yml.
@@ -48,7 +49,7 @@ on_exit() {
     compose logs --no-color --tail 200 || true
   fi
   compose down --volumes --remove-orphans > /dev/null 2>&1 || true
-  rm -rf deploy/secrets deploy/grove.env
+  sudo rm -rf deploy/secrets deploy/grove.env
 }
 trap on_exit EXIT
 
@@ -81,6 +82,8 @@ sed -e "s|^BRIGID_DOMAIN=.*|BRIGID_DOMAIN=$DOMAIN|" \
 MINIO_ROOT_USER="$(cat deploy/secrets/replica_key_id)"
 MINIO_ROOT_PASSWORD="$(cat deploy/secrets/replica_secret)"
 export MINIO_ROOT_USER MINIO_ROOT_PASSWORD
+sudo chown 65532:65532 deploy/secrets/master_key deploy/secrets/replica_*
+ls -l deploy/secrets
 cat deploy/grove.env
 
 step "a certificate authority for the test, and the certificates of the proxy and the bucket"

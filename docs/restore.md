@@ -23,8 +23,9 @@ Kept away from the machine, since the machine is what is lost:
 ## From the replica
 
 On the machine that will run grove: Docker with Compose, a checkout of this repository,
-`deploy/grove.env` and the four files of `deploy/secrets/` as they were. From the root of the
-checkout:
+`deploy/grove.env` and the four files of `deploy/secrets/` as they were, belonging to the
+services' user (`sudo chown 65532:65532 deploy/secrets/*`, as at the installation: see the top
+of [`deploy/compose.yaml`](../deploy/compose.yaml)). From the root of the checkout:
 
 ```sh
 # 1. grove and Litestream stopped (on a new machine they are not running: nothing to do).
@@ -87,7 +88,8 @@ A seedling moves to grove with its data, its master key and its domain.
    bucket for the replica, and the secrets as at an installation, except the master key:
    `deploy/secrets/master_key` holds the seedling's own (the file `/etc/brigid/master.key`;
    a key sealed by the machine is read with
-   `sudo systemd-creds decrypt --name=master.key /etc/brigid/master.key.cred -`).
+   `sudo systemd-creds decrypt --name=master.key /etc/brigid/master.key.cred -`), and all four
+   belong to the services' user (`sudo chown 65532:65532 deploy/secrets/*`).
 3. The backup into grove's volume (`/path/to/brigid.db`: where you copied it):
 
    ```sh
