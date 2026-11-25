@@ -1,0 +1,8 @@
+# The reverse proxy of the restore test: it holds the certificate of
+# brigid.localhost (made by tests/restore/run.sh) and forwards to grove.
+# Caddy replaces X-Forwarded-For with the address it was reached from, as
+# deploy/compose.yaml asks of a proxy.
+brigid.localhost {
+	tls /certs/cert.pem /certs/key.pem
+	reverse_proxy grove:8080
+}

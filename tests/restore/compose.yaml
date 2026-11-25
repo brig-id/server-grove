@@ -1,0 +1,53 @@
+# The restore test (tests/restore/run.sh) runs deploy/compose.yaml as it is
+# shipped, with this file on top. It adds only what a real deployment has
+# around grove and a CI runner does not:
+#
+# - minio: the S3-compatible bucket of the replica. Over TLS: storage refuses
+#   a key of the customer's (SSE-C, litestream.yml) on plain HTTP.
+# - proxy: the reverse proxy in front, with the certificate of
+#   brigid.localhost (a browser makes passkeys only for a secure origin).
+#
+# The certificates come from a certificate authority the test makes and
+# throws away (deploy/secrets/tls). Paths are relative to deploy/, the
+# directory of the first compose file.
+
+services:
+  litestream:
+    environment:
+      # Litestream is a Go program: it trusts the authority named here.
+      SSL_CERT_FILE: /etc/ssl/test-ca.pem
+    volumes:
+      - ./secrets/tls/ca.pem:/etc/ssl/test-ca.pem:ro
+    depends_on:
+      - minio
+
+  minio:
+    # Chainguard's build of MinIO: MinIO no longer publishes images.
+    image: cgr.dev/chainguard/minio@sha256:f6243be11aaaa2fe654d260558e2b3fcef50135e78a3abfd0db802b13444f059
+    # Root in its own container: the volume is new and belongs to root.
+    user: "0:0"
+    command: ["server", "/data", "--address", ":9000", "--certs-dir", "/certs"]
+    environment:
+      MINIO_ROOT_USER: "${MINIO_ROOT_USER:?the replica's access key id}"
+      MINIO_ROOT_PASSWORD: "${MINIO_ROOT_PASSWORD:?the replica's secret}"
+      # litestream.yml says `region: auto`, as Cloudflare R2 wants.
+      MINIO_SITE_REGION: auto
+    volumes:
+      - minio-data:/data
+      - ./secrets/tls/minio:/certs:ro
+    ports:
+      # For the test to make the bucket and look into it.
+      - "127.0.0.1:9000:9000"
+
+  proxy:
+    image: caddy:2.10.2-alpine@sha256:4c6e91c6ed0e2fa03efd5b44747b625fec79bc9cd06ac5235a779726618e530d
+    volumes:
+      - ../tests/restore/Caddyfile:/etc/caddy/Caddyfile:ro
+      - ./secrets/tls/brigid.localhost:/certs:ro
+    ports:
+      - "127.0.0.1:443:443"
+    depends_on:
+      - grove
+
+volumes:
+  minio-data:
