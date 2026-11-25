@@ -5,6 +5,7 @@
     "docker",
     "ci",
     "deps",
+    "release",
     "ai",
     "docs"
   ]

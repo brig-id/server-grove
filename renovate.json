@@ -1,0 +1,11 @@
+{
+  "$schema": "https://docs.renovatebot.com/renovate-schema.json",
+  "extends": ["github>brig-id/.github"],
+  "packageRules": [
+    {
+      "description": "The tests play the browser's side of a passkey ceremony against the server side that brig-id/core holds: both are the same version. They move with the core's pin.",
+      "matchPackageNames": ["webauthn-rs", "webauthn-rs-proto", "webauthn-authenticator-rs"],
+      "enabled": false
+    }
+  ]
+}
