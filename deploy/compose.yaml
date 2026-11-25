@@ -6,7 +6,12 @@
 #   openssl rand -base64 32  > deploy/secrets/replica_sse_key # idem
 #   printf %s "<access key id>"     > deploy/secrets/replica_key_id
 #   printf %s "<secret access key>" > deploy/secrets/replica_secret
+#   sudo chown 65532:65532 deploy/secrets/*     # the services' user reads them
 #   docker compose -f deploy/compose.yaml --env-file deploy/grove.env up -d
+#
+# The secrets are files mounted as they are: Compose (outside a swarm) ignores
+# the `uid` and `mode` below, so the files themselves must belong to the user
+# grove and Litestream run as (65532), and to it alone (umask 077).
 #
 # Two services on one volume:
 # - grove: the server, plain HTTP on 8080 behind your reverse proxy (it holds
