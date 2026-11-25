@@ -1,0 +1,70 @@
+name: Restore
+
+# grove deployed from deploy/compose.yaml, given real data, its volume
+# destroyed, its database restored from the replica as docs/restore.md says,
+# and the server found as it was: tests/restore/run.sh. Nothing is pushed.
+
+on:
+  push:
+    branches: [main, "dev/*"]
+  pull_request:
+    branches: [main, "dev/*"]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  restore:
+    name: Restore from the replica (compose file, Litestream, a passkey)
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    env:
+      # The browser of the test. Not a dependency of the repository: installed
+      # here only.
+      PLAYWRIGHT_VERSION: "1.62.1"
+    steps:
+      - name: Checkout server-grove
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: The interface ci.yml pins
+        id: app
+        run: |
+          ref=$(sed -n 's/^  APP_REF: \([0-9a-f]\{40\}\).*/\1/p' .github/workflows/ci.yml)
+          test -n "$ref"
+          echo "ref=$ref" >> "$GITHUB_OUTPUT"
+
+      - name: Checkout app (Qwik UI)
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+          repository: brig-id/app
+          ref: ${{ steps.app.outputs.ref }}
+          path: ui
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@f87e5991a6d7451dcb8d9637bfbc97413f497069 # v4.4.1
+
+      - name: Build the image (Dockerfile)
+        uses: docker/build-push-action@c3c9e263c25d99ce0380d002d59b67737d91b0dc # v7.4.0
+        with:
+          context: .
+          push: false
+          load: true
+          tags: brigid/grove:dev
+          cache-from: type=gha,scope=restore
+          cache-to: type=gha,scope=restore,mode=max
+
+      - name: Playwright and Chromium
+        run: |
+          sudo apt-get update -qq && sudo apt-get install -y -qq libnss3-tools
+          dir="$RUNNER_TEMP/playwright"
+          mkdir -p "$dir"
+          npm install --prefix "$dir" --no-save --no-audit --no-fund "playwright@$PLAYWRIGHT_VERSION"
+          "$dir/node_modules/.bin/playwright" install --with-deps chromium
+          echo "PLAYWRIGHT_MODULE=$dir/node_modules/playwright" >> "$GITHUB_ENV"
+
+      - name: Deploy, fill, destroy, restore, compare
+        run: tests/restore/run.sh
