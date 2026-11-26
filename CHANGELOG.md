@@ -7,6 +7,13 @@ of the Conventional Commits of the release; the entries up to 0.4.0 were written
 the [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) format. This project adheres
 to [Semantic Versioning](https://semver.org/).
 
+## [0.5.1](https://github.com/brig-id/server-grove/compare/v0.5.0...v0.5.1) (2026-11-26)
+
+
+### Bug Fixes
+
+* **docker:** 🐛 the secrets belong to the services' user, or they cannot read them ([90e228f](https://github.com/brig-id/server-grove/commit/90e228f8753eb2592965a580898825e3fac49597))
+
 ## [0.5.0](https://github.com/brig-id/server-grove/compare/v0.4.0...v0.5.0) (2026-11-25)
 
 
