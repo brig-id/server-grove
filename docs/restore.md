@@ -74,29 +74,63 @@ checks:
 - the passkey made before the loss signs in, and the account, its identities and the
   administration show the same as before.
 
+## Backups, and a restore from a backup
+
+**From the release after grove 0.5.0**, which brings in the next release of the shared
+engine. Until then grove has no `backup` and `restore` commands. What they do is described
+in core's [`docs/operations.md`](https://github.com/brig-id/core/blob/main/docs/operations.md).
+
+The replica above follows every change. A backup is a file of the database at one moment,
+to keep elsewhere, or to move a server.
+
+```sh
+# A backup, while grove runs: a consistent copy, mode 0600, never written over.
+mkdir -p backups && sudo chown 65532:65532 backups
+docker compose -f deploy/compose.yaml --env-file deploy/grove.env \
+  run --rm --no-deps -v "$PWD/backups:/backups" grove backup /backups/brigid-2026-11-26.db
+```
+
+The copy is encrypted under the master key, as the database is, and needs no key to be made.
+Keep the key apart from the backups.
+
+A restore puts a backup in place of the database. It refuses while anything uses the
+database, so grove **and Litestream** are stopped first; it checks that the master key opens
+the backup and that its accounts belong to this server's domain, and keeps the database it
+replaces beside it, as `brigid.db.before-restore-<time>`:
+
+```sh
+docker compose -f deploy/compose.yaml --env-file deploy/grove.env stop grove litestream
+docker compose -f deploy/compose.yaml --env-file deploy/grove.env \
+  run --rm --no-deps -v "$PWD/backups:/backups:ro" grove restore /backups/brigid-2026-11-26.db
+docker compose -f deploy/compose.yaml --env-file deploy/grove.env up -d
+```
+
+The bucket still holds the history of the database that was replaced: give the restored one
+a new, empty bucket (`REPLICA_BUCKET` in `deploy/grove.env`) before `up`, so that the replica
+holds one history only.
+
 ## From seedling
 
-*To be confirmed:* `seedling backup` is being added to the shared engine
-([`core`](https://github.com/brig-id/core)). These steps will be checked against it, and
-tested, when it is released.
+**From the release after grove 0.5.0**, as above, and with a seedling of the same engine.
+These steps are not tested in CI yet; they will be once grove brings that engine in.
 
-A seedling moves to grove with its data, its master key and its domain.
+A seedling moves to grove with its data, its master key and its domain: both editions run the
+same SQLite database, and a passkey works only on the domain that created it.
 
-1. On the seedling's machine, a backup of its database: `sudo seedling backup brigid.db`. Stop
-   seedling afterwards, so that nothing changes that the backup does not have.
-2. On grove's machine, `deploy/grove.env` with the seedling's domain in `BRIGID_DOMAIN`, a new
-   bucket for the replica, and the secrets as at an installation, except the master key:
-   `deploy/secrets/master_key` holds the seedling's own (the file `/etc/brigid/master.key`;
-   a key sealed by the machine is read with
-   `sudo systemd-creds decrypt --name=master.key /etc/brigid/master.key.cred -`), and all four
-   belong to the services' user (`sudo chown 65532:65532 deploy/secrets/*`).
-3. The backup into grove's volume (`/path/to/brigid.db`: where you copied it):
+1. On the seedling's machine, stop seedling, so that nothing changes after the copy, then
+   make a backup: `sudo seedling backup /root/brigid.db`.
+2. Copy the file to grove's machine, with the seedling's master key (the file
+   `/etc/brigid/master.key`; a key sealed by the machine is read with
+   `sudo systemd-creds decrypt --name=master.key /etc/brigid/master.key.cred -`).
+3. On grove's machine, install grove as the README says, with the seedling's domain in
+   `BRIGID_DOMAIN`, a new bucket for the replica, and the seedling's master key in
+   `deploy/secrets/master_key`. Give the four secrets and the backup to the services' user
+   (`sudo chown 65532:65532 deploy/secrets/* backups/brigid.db`, the backup in `backups/`),
+   then restore it into grove's volume before the first start:
 
    ```sh
    docker compose -f deploy/compose.yaml --env-file deploy/grove.env \
-     run --rm --no-deps --user 0:0 -v /path/to/brigid.db:/backup/brigid.db:ro \
-     --entrypoint /bin/sh litestream -c 'cp /backup/brigid.db /data/brigid.db &&
-     chown -R 65532:65532 /data'
+     run --rm --no-deps -v "$PWD/backups:/backups:ro" grove restore /backups/brigid.db
    docker compose -f deploy/compose.yaml --env-file deploy/grove.env up -d
    ```
 
