@@ -30,9 +30,11 @@ and it is still being built: what is not there yet is said below.
 - **Defaults for a server open to others.** Who may create an account is a setting: anyone,
   whoever an administrator invited (the default), or nobody. The passkey ceremonies and the
   account pages are rate-limited per address; behind the proxy, the address is the one it
-  forwards. Not there yet: quotas per account and the other abuse controls. They belong in
-  the shared engine ([`core`](https://github.com/brig-id/core)), behind settings, and grove
-  will have them when core does.
+  forwards. Limits per account and per address come with the release after grove 0.5.0,
+  from the shared engine ([`core`](https://github.com/brig-id/core)): at most 20 identities
+  and 10 passkeys per account and 5 new accounts per address and per day by default, each set
+  from 1 up to 200, 50 and 1000 with `grove limits set <name> <value>` (`grove limits` prints
+  them).
 
 What an account, an identity, a passkey and a token are does not depend on the edition:
 that lives in [`core`](https://github.com/brig-id/core) and
@@ -82,15 +84,22 @@ with the operator's commands, waits for the replica, destroys the volume, restor
 checks that the database is the same row for row, that the server answers the same, and that
 the passkey still signs in to the same account.
 
+## Back it up
+
+From the release after grove 0.5.0, `grove backup <file>` writes a consistent copy of the
+database while the server runs, and `grove restore <file>` puts one back in place, with grove
+and Litestream stopped. The commands, run with `docker compose run` on grove's volume, are in
+[docs/restore.md](docs/restore.md#backups-and-a-restore-from-a-backup); what they check is in
+core's [`docs/operations.md`](https://github.com/brig-id/core/blob/main/docs/operations.md).
+
 ## From seedling to grove
 
-Moving a seedling to grove keeps its data, its master key and its domain: a passkey is bound to
-the domain that created it, so the domain cannot change in the move. A backup of the seedling's
-database is put in grove's volume, and grove starts on it with the seedling's master key. The
-steps are in [docs/restore.md](docs/restore.md#from-seedling).
-
-*To be confirmed:* the `seedling backup` command these steps use is being added to the shared
-engine, and the steps will be checked against it when it is released.
+A seedling moves to grove with its data, its master key and its domain: a passkey is bound to
+the domain that created it, so the domain cannot change in the move. From the release after
+grove 0.5.0: `seedling backup <file>` on the old machine, the file copied to the new one, and
+`grove restore <file>` into grove's volume, with the seedling's master key and the same
+domain, before grove's first start. The steps are in
+[docs/restore.md](docs/restore.md#from-seedling).
 
 ## Licence
 
