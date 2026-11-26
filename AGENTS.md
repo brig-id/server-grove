@@ -54,10 +54,13 @@ creates the tag `vX.Y.Z` and the GitHub Release, then starts `ci.yml` on the tag
 tag-only jobs add the static binaries and push `ghcr.io/brig-id/grove`. So:
 
 - the core, crypto and the interface are pinned by tag (`tag = "vX.Y.Z"`, and `APP_REF`
-  with its tag beside it); Renovate proposes their new releases in one pull request,
-  `feat(deps)` or `fix(deps)`, and merging it is what opens the next release here;
-- the commit type decides the version: `feat` is a minor, `fix` a patch, a `!` or a
-  `BREAKING CHANGE:` footer a minor too while the version is 0.x;
+  with its tag beside it); Renovate proposes their new releases in one pull request, on a
+  Monday (sooner from its box on the Dependency Dashboard), always `fix(deps)`, and
+  merging it is what opens the next release here; an update from outside the project
+  comes as `build(deps)` and waits for the next release;
+- the commit type decides the version: while it is 0.x, `feat` and `fix` are a patch,
+  a `!` or a `BREAKING CHANGE:` footer a minor; `build`, `ci`, `chore`, `docs`, `test`
+  and `refactor` alone make no release;
 - the commit subject is the changelog line: write it for someone reading the release;
 - do not edit `CHANGELOG.md`, `.release-please-manifest.json` or the version in
   `Cargo.toml` by hand.
