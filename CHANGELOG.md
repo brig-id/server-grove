@@ -7,6 +7,13 @@ of the Conventional Commits of the release; the entries up to 0.4.0 were written
 the [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) format. This project adheres
 to [Semantic Versioning](https://semver.org/).
 
+## [0.5.2](https://github.com/brig-id/server-grove/compare/v0.5.1...v0.5.2) (2026-11-27)
+
+
+### Bug Fixes
+
+* **deps:** 📦 core v0.3.1: backup, restore and limits ([5961c95](https://github.com/brig-id/server-grove/commit/5961c9565dc764cb81dd1494d229ec0a29fb2950))
+
 ## [0.5.1](https://github.com/brig-id/server-grove/compare/v0.5.0...v0.5.1) (2026-11-26)
 
 
