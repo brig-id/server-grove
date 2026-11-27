@@ -78,31 +78,12 @@ ENV CARGO_BUILD_JOBS=4
 # to, so SQLite fails with "unable to open database file" on first start.
 RUN mkdir -p /data
 
-# Install build-time dependencies:
-#   - pkg-config + libssl-dev: required because `webauthn-rs`'s attestation
-#     CA chain validator (`webauthn-attestation-ca`) pulls in `openssl-sys`
-#     transitively. This is the single documented OpenSSL exception to the
-#     "no OpenSSL" rule in `core/AGENTS.md` §"Hard security constraints"
-#     and is scoped to attestation chain verification only — TLS, KEM, DSA
-#     and KDF stay on rustls / RustCrypto. `Cargo.lock` does not contain
-#     `openssl-src`, so the build links against the system OpenSSL headers
-#     at compile time. The resulting binary is dynamically linked against
-#     `libssl` / `libcrypto`; the distroless runtime stage below
-#     (`gcr.io/distroless/cc-debian12`) ships matching `libssl3` /
-#     `libcrypto3` shared libraries from the same Debian 12 (bookworm) base
-#     used by `rust:1.88-slim`, so the binary loads cleanly in the final
-#     image. `rust:1.89-slim` and later move to Debian 13 (trixie) — do not
-#     bump past 1.88 without also re-checking this ABI match. If the runtime
-#     base ever drifts off Debian 12, pin
-#     `openssl = { version = "0.10", features = ["vendored"] }` in
-#     `Cargo.toml` (and add `perl`, `make` here) to statically embed
-#     OpenSSL. A bounded `0.10` requirement is mandatory: a wildcard `"*"`
-#     would trip `cargo-deny`'s `[bans].wildcards = "warn"` policy and
-#     remove version control over a security-sensitive crate.
-#   - ca-certificates: needed for `cargo` to fetch git dependencies over HTTPS
-#     during the dependency-resolution step.
+# ca-certificates: for `cargo` to fetch the git dependencies over HTTPS.
+# Nothing else: the server links no library of the system but the C library
+# (no OpenSSL since webauthn-rs 0.6; TLS is rustls on aws-lc, built from its
+# own sources by cargo).
 RUN apt-get update && \
-    apt-get install -y --no-install-recommends pkg-config libssl-dev ca-certificates && \
+    apt-get install -y --no-install-recommends ca-certificates && \
     rm -rf /var/lib/apt/lists/*
 
 # Copy manifests first so dependency layers are cached separately from source.
@@ -129,9 +110,9 @@ RUN touch src/main.rs && \
 # ---------------------------------------------------------------------------
 # Pin runtime image to an immutable digest — same rationale as the builder:
 # deterministic rebuilds and bounded supply-chain exposure. The `cc-debian12`
-# variant ships `libssl3`/`libcrypto3` matching the `rust:1.88-slim` builder
-# above (see the libssl comment), so the dynamically-linked binary loads
-# cleanly. Re-pin whenever the runtime base is refreshed.
+# variant has the C library and libgcc the dynamically-linked binary needs,
+# from the same Debian 12 (bookworm) as the builder. Re-pin whenever the
+# runtime base is refreshed.
 #
 # This MUST be the multi-arch index digest (mediaType
 # application/vnd.oci.image.index.v1+json), not a single-platform manifest
