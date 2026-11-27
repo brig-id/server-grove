@@ -17,12 +17,6 @@ brigid-server = { git = "https://github.com/brig-id/core", branch = "main", pack
 clap = { version = "4", features = ["derive", "env"] }
 tokio = { version = "1", features = ["full"] }
 
-# A static (musl) build carries its own OpenSSL: the system's is not there to
-# link to. OpenSSL is reached only by the attestation code of webauthn-rs,
-# which brig·id never runs (attestation "none").
-[target.'cfg(target_env = "musl")'.dependencies]
-openssl = { version = "0.10", features = ["vendored"] }
-
 [build-dependencies]
 brigid-ui-embed = { git = "https://github.com/brig-id/core", branch = "main", package = "brigid-ui-embed" }
 

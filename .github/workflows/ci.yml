@@ -122,7 +122,7 @@ jobs:
   binaries:
     # Static (musl) executables, each built natively on its own
     # architecture: they link nothing, so they run on any Linux, with or
-    # without a C library or OpenSSL (vendored, Cargo.toml).
+    # without a C library (and there is no OpenSSL to look for).
     name: Static binary (${{ matrix.arch }})
     needs: ui
     strategy:
