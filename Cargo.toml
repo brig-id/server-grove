@@ -1,14 +1,18 @@
 [package]
 name = "grove"
-version = "0.5.2"
+# The version of a release is its tag: the release build writes it here before
+# compiling (scripts/set-version.sh). Any other build says 0.0.0.
+version = "0.0.0"
 edition = "2024"
 license = "AGPL-3.0-or-later"
 publish = false
 rust-version = "1.94"
 
 [dependencies]
-# The server every edition runs (core): grove only describes itself.
-brigid-server = { git = "https://github.com/brig-id/core", tag = "v0.3.1", package = "brigid-server" }
+# The server every edition runs (core): grove only describes itself. The core
+# at a commit of its main, which Cargo.lock holds: `cargo update -p
+# brigid-server` follows a newer one.
+brigid-server = { git = "https://github.com/brig-id/core", branch = "main", package = "brigid-server" }
 
 clap = { version = "4", features = ["derive", "env"] }
 tokio = { version = "1", features = ["full"] }
@@ -20,7 +24,7 @@ tokio = { version = "1", features = ["full"] }
 openssl = { version = "0.10", features = ["vendored"] }
 
 [build-dependencies]
-brigid-ui-embed = { git = "https://github.com/brig-id/core", tag = "v0.3.1", package = "brigid-ui-embed" }
+brigid-ui-embed = { git = "https://github.com/brig-id/core", branch = "main", package = "brigid-ui-embed" }
 
 [dev-dependencies]
 tempfile = "3"

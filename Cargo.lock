@@ -407,8 +407,8 @@ dependencies = [
 
 [[package]]
 name = "brigid-api"
-version = "0.3.1"
-source = "git+https://github.com/brig-id/core?tag=v0.3.1#074c008922d0015962dc39a65a912654a14d2c44"
+version = "0.3.2"
+source = "git+https://github.com/brig-id/core?branch=main#c32a0109788578338b5b81c6115ede87aef0443e"
 dependencies = [
  "axum",
  "base64ct",
@@ -455,8 +455,8 @@ dependencies = [
 
 [[package]]
 name = "brigid-identity"
-version = "0.3.1"
-source = "git+https://github.com/brig-id/core?tag=v0.3.1#074c008922d0015962dc39a65a912654a14d2c44"
+version = "0.3.2"
+source = "git+https://github.com/brig-id/core?branch=main#c32a0109788578338b5b81c6115ede87aef0443e"
 dependencies = [
  "base64ct",
  "helpers4",
@@ -470,8 +470,8 @@ dependencies = [
 
 [[package]]
 name = "brigid-oidc"
-version = "0.3.1"
-source = "git+https://github.com/brig-id/core?tag=v0.3.1#074c008922d0015962dc39a65a912654a14d2c44"
+version = "0.3.2"
+source = "git+https://github.com/brig-id/core?branch=main#c32a0109788578338b5b81c6115ede87aef0443e"
 dependencies = [
  "base64ct",
  "brigid-identity",
@@ -491,8 +491,8 @@ dependencies = [
 
 [[package]]
 name = "brigid-server"
-version = "0.3.1"
-source = "git+https://github.com/brig-id/core?tag=v0.3.1#074c008922d0015962dc39a65a912654a14d2c44"
+version = "0.3.2"
+source = "git+https://github.com/brig-id/core?branch=main#c32a0109788578338b5b81c6115ede87aef0443e"
 dependencies = [
  "axum",
  "axum-server",
@@ -522,8 +522,8 @@ dependencies = [
 
 [[package]]
 name = "brigid-store"
-version = "0.3.1"
-source = "git+https://github.com/brig-id/core?tag=v0.3.1#074c008922d0015962dc39a65a912654a14d2c44"
+version = "0.3.2"
+source = "git+https://github.com/brig-id/core?branch=main#c32a0109788578338b5b81c6115ede87aef0443e"
 dependencies = [
  "base64ct",
  "brigid-crypto",
@@ -543,16 +543,16 @@ dependencies = [
 
 [[package]]
 name = "brigid-ui-embed"
-version = "0.3.1"
-source = "git+https://github.com/brig-id/core?tag=v0.3.1#074c008922d0015962dc39a65a912654a14d2c44"
+version = "0.3.2"
+source = "git+https://github.com/brig-id/core?branch=main#c32a0109788578338b5b81c6115ede87aef0443e"
 dependencies = [
  "flate2",
 ]
 
 [[package]]
 name = "brigid-webauthn"
-version = "0.3.1"
-source = "git+https://github.com/brig-id/core?tag=v0.3.1#074c008922d0015962dc39a65a912654a14d2c44"
+version = "0.3.2"
+source = "git+https://github.com/brig-id/core?branch=main#c32a0109788578338b5b81c6115ede87aef0443e"
 dependencies = [
  "brigid-crypto",
  "brigid-identity",
@@ -1382,7 +1382,7 @@ dependencies = [
 
 [[package]]
 name = "grove"
-version = "0.5.2"
+version = "0.0.0"
 dependencies = [
  "brigid-server",
  "brigid-ui-embed",
