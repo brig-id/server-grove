@@ -23,7 +23,7 @@ env:
   # so that two builds of the same server commit embed the same interface. The
   # pull request that needs a newer interface moves it (the integration job
   # refuses a commit that is not on the interface's main).
-  APP_REF: a6fbc98615825c8830ad9af36471acc3126e87c9
+  APP_REF: 00f9e0242e9be67ad55050a686cc5277f69d8f70
 
 jobs:
   ci:
