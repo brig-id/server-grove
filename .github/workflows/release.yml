@@ -14,7 +14,8 @@ name: Release
 #             built: every test, the static binaries, the image.
 # 3. publish  the image, then the GitHub Release with the binaries, and the
 #             tag with it: LAST. A release that fails on the way leaves no
-#             tag and uses no number; run it again.
+#             tag and uses no number; run it again. With `dry-run`, the job
+#             does everything but push, release and tag.
 #
 # The version is the tag: no file of the repository holds it, and there is no
 # CHANGELOG.md. The notes are on the GitHub Release.
@@ -32,7 +33,7 @@ on:
         type: boolean
         default: false
       dry-run:
-        description: Plan and build, publish nothing.
+        description: Everything but publishing (no image pushed, no release, no tag).
         type: boolean
         default: false
 
@@ -64,8 +65,6 @@ jobs:
   publish:
     name: Publish (image, binaries, then the tag)
     needs: [plan, build]
-    # Only ever from the button (or `brigid release cut`), and not in a dry run.
-    if: ${{ github.event_name == 'workflow_dispatch' && !inputs.dry-run }}
     runs-on: ubuntu-latest
     permissions:
       contents: write
@@ -75,6 +74,9 @@ jobs:
     env:
       VERSION: ${{ needs.plan.outputs.version }}
       TAG: ${{ needs.plan.outputs.tag }}
+      # Only the button (or `brigid release cut`) publishes, and not in a dry
+      # run: every step below runs then, but the ones that publish.
+      PUBLISH: ${{ github.event_name == 'workflow_dispatch' && !inputs.dry-run }}
     steps:
       - name: Checkout server-grove
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -84,6 +86,7 @@ jobs:
       - name: Refuse anything but main
         # The VM deploys the highest vX.Y.Z image on its own: a release is
         # only ever made of a commit of main.
+        if: env.PUBLISH == 'true'
         run: test "$GITHUB_REF" = refs/heads/main
 
       - name: The binaries
@@ -132,6 +135,7 @@ jobs:
           upload-release-assets: false
 
       - name: Provenance
+        if: env.PUBLISH == 'true'
         uses: actions/attest-build-provenance@4d101475d8b20a2381f78447822ac1eab6504dd8 # v4.2.2
         with:
           subject-path: release/grove-linux-*
@@ -140,24 +144,26 @@ jobs:
         uses: docker/setup-buildx-action@f87e5991a6d7451dcb8d9637bfbc97413f497069 # v4.4.1
 
       - name: Log in to GitHub Container Registry
+        if: env.PUBLISH == 'true'
         uses: docker/login-action@8aa5831fb8d48d8f76594c7ddde61ae58019f550 # v4.8.0
         with:
           registry: ghcr.io
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
 
-      - name: Build and push the image
+      - name: Build the image, and push it
         uses: docker/build-push-action@c3c9e263c25d99ce0380d002d59b67737d91b0dc # v7.4.0
         with:
           context: .
           file: Dockerfile.release
-          push: true
+          push: ${{ env.PUBLISH == 'true' }}
           platforms: linux/amd64,linux/arm64
           tags: |
             ghcr.io/brig-id/grove:${{ needs.plan.outputs.tag }}
             ghcr.io/brig-id/grove:latest
 
       - name: The GitHub Release, and its tag
+        if: env.PUBLISH == 'true'
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
