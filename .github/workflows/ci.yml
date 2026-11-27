@@ -3,34 +3,49 @@ name: CI
 on:
   push:
     branches: [main, "dev/*"]
-    tags: ["v*"]
   pull_request:
     branches: [main, "dev/*"]
-  # Started by the release workflow: on the release pull request, and on the
-  # tag it has just created (a tag pushed by the workflow token starts nothing).
   workflow_dispatch:
+  # The build of a release (release.yml): the same jobs, with the version of
+  # the tag about to be made written into what is built.
+  workflow_call:
+    inputs:
+      version:
+        description: The version being released (X.Y.Z); empty for an ordinary build.
+        type: string
+        default: ""
 
-# Least privilege by default; the release jobs widen it for themselves.
 permissions:
   contents: read
 
 env:
-  # The interface embedded in the server: brig-id/app at a release, its tag
-  # and its commit together, so that two builds of the same server commit
-  # embed the same interface. Renovate proposes each new release.
-  # renovate: datasource=github-tags depName=brig-id/app
-  APP_REF: a6fbc98615825c8830ad9af36471acc3126e87c9 # v0.11.1
+  # The interface embedded in the server: brig-id/app at a commit of its main,
+  # so that two builds of the same server commit embed the same interface. The
+  # pull request that needs a newer interface moves it (the integration job
+  # refuses a commit that is not on the interface's main).
+  APP_REF: a6fbc98615825c8830ad9af36471acc3126e87c9
 
 jobs:
   ci:
-    uses: brig-id/.github/.github/workflows/ci-rust.yml@5e019131d735e4ed0bd3598b5a61137bdae7eff3
+    uses: brig-id/.github/.github/workflows/ci-rust.yml@main
     with:
       working-directory: .
 
   security:
-    uses: brig-id/.github/.github/workflows/security-audit.yml@5e019131d735e4ed0bd3598b5a61137bdae7eff3
+    uses: brig-id/.github/.github/workflows/security-audit.yml@main
     with:
       working-directory: .
+
+  # With a branch of the same name and an open pull request in the core or
+  # crypto, grove's tests run with it, before anything is merged; and APP_REF
+  # is checked to be a commit of the interface's main (brig-id/.github,
+  # integration.yml). The suites in a browser run against seedling, the same
+  # server in another edition.
+  integration:
+    uses: brig-id/.github/.github/workflows/integration.yml@main
+    with:
+      heads: false
+      suites: tests
 
   docker:
     # Its own job, not a reusable workflow of brig-id/.github: checks that
@@ -92,6 +107,10 @@ jobs:
 
       - name: Build
         working-directory: ui
+        env:
+          # In a release, the interface says the version of the server it is
+          # part of.
+          BRIGID_INTERFACE_VERSION: ${{ inputs.version }}
         run: pnpm build
 
       - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
@@ -129,6 +148,12 @@ jobs:
         with:
           name: ui-dist
           path: ui-dist
+
+      - name: The version of the release
+        if: inputs.version != ''
+        env:
+          VERSION: ${{ inputs.version }}
+        run: scripts/set-version.sh "$VERSION"
 
       - name: Install Rust stable
         uses: dtolnay/rust-toolchain@683b588c487a69d01f6c6ddf40f036ff682cc2c8 # master @ 2026-08-05
@@ -184,7 +209,7 @@ jobs:
 
   image:
     # The released image, made of the two binaries above: built on every
-    # change, so that a tag never meets it for the first time.
+    # change, so that a release never meets it for the first time.
     name: Release image (from the static binaries)
     needs: binaries
     runs-on: ubuntu-latest
@@ -230,150 +255,3 @@ jobs:
           file: Dockerfile.release
           platforms: linux/amd64,linux/arm64
           push: false
-
-  # Runs only on a `vX.Y.Z` tag push: the GitHub release with its files, and
-  # the image the VM deploys. Both are made of the same two binaries.
-  release:
-    if: startsWith(github.ref, 'refs/tags/v')
-    name: GitHub release (binaries, sums, SBOM, provenance)
-    needs: [binaries, image]
-    runs-on: ubuntu-latest
-    permissions:
-      contents: write
-      id-token: write
-      attestations: write
-    steps:
-      - name: Checkout server-grove
-        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
-        with:
-          persist-credentials: false
-          # Full history, so the step below can tell whether the tag is on main.
-          fetch-depth: 0
-
-      - name: Refuse a tag that is not on main
-        # The VM deploys the highest vX.Y.Z image on its own: a release must
-        # only ever be built from a commit that went through main.
-        run: git merge-base --is-ancestor "$GITHUB_SHA" origin/main
-
-      - name: The binaries
-        uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
-        with:
-          pattern: grove-*
-          path: artifacts
-
-
-      - name: The files
-        run: |
-          mkdir -p release
-          for pair in amd64:x86_64 arm64:aarch64; do
-            # No version in the name: releases/latest/download/<name> is then
-            # always the newest, which is how docs/install.md installs and
-            # updates.
-            cp "artifacts/grove-${pair%%:*}/grove" "release/grove-linux-${pair##*:}"
-          done
-          chmod 755 release/*
-          (cd release && sha256sum grove-* > SHA256SUMS)
-          cat release/SHA256SUMS
-
-      - name: SBOM (what the binaries are made of)
-        uses: anchore/sbom-action@66cbf4bc1f1c0d2edc94016e65bc221b6bb0ad6c # v0.24.3
-        with:
-          path: .
-          format: spdx-json
-          output-file: release/grove.spdx.json
-          upload-artifact: false
-          upload-release-assets: false
-
-      - name: Provenance
-        uses: actions/attest-build-provenance@4d101475d8b20a2381f78447822ac1eab6504dd8 # v4.2.2
-        with:
-          subject-path: release/grove-linux-*
-
-      - name: Publish
-        env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        run: |
-          version="${GITHUB_REF_NAME#v}"
-          {
-            echo
-            echo "Each binary runs on any Linux of its architecture: it links nothing."
-            echo "Check it with \`sha256sum -c SHA256SUMS\` and \`gh attestation verify <file> --repo $GITHUB_REPOSITORY\`."
-          } > check.md
-          if gh release view "$GITHUB_REF_NAME" > /dev/null 2>&1; then
-            # Created by release-please, with the changelog entry as its notes:
-            # add the files, the edition's name and how to check them.
-            gh release view "$GITHUB_REF_NAME" --json body --jq .body > notes.md
-            grep -q "it links nothing" notes.md || cat check.md >> notes.md
-            gh release upload "$GITHUB_REF_NAME" release/* --clobber
-            gh release edit "$GITHUB_REF_NAME" --title "grove $version" --notes-file notes.md
-          else
-            # A tag pushed by hand: the notes are the changelog's section.
-            awk -v v="$version" '
-              $0 ~ "^## \\[" v "\\]" { on = 1; next }
-              on && /^## \[/ { exit }
-              on { print }
-            ' CHANGELOG.md > notes.md
-            cat check.md >> notes.md
-            gh release create "$GITHUB_REF_NAME" release/* --verify-tag \
-              --title "grove $version" --notes-file notes.md
-          fi
-
-  docker-release:
-    if: startsWith(github.ref, 'refs/tags/v')
-    name: Docker release (push, multi-arch)
-    needs: [binaries, image]
-    runs-on: ubuntu-latest
-    permissions:
-      contents: read
-      packages: write
-    steps:
-      - name: Checkout server-grove
-        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
-        with:
-          persist-credentials: false
-          # Full history, so the step below can tell whether the tag is on main.
-          fetch-depth: 0
-
-
-      - name: Refuse a tag that is not on main
-        # The VM deploys the highest vX.Y.Z image on its own: a release must
-        # only ever be built from a commit that went through main.
-        run: git merge-base --is-ancestor "$GITHUB_SHA" origin/main
-
-
-      - name: The binaries
-        uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
-        with:
-          pattern: grove-*
-          path: artifacts
-
-
-      - name: The build context
-        run: |
-          mkdir -p bin/data
-          for arch in amd64 arm64; do
-            cp "artifacts/grove-$arch/grove" "bin/grove-$arch"
-          done
-          ls -la bin
-
-
-      - name: Set up Docker Buildx
-        uses: docker/setup-buildx-action@f87e5991a6d7451dcb8d9637bfbc97413f497069 # v4.4.1
-
-      - name: Log in to GitHub Container Registry
-        uses: docker/login-action@8aa5831fb8d48d8f76594c7ddde61ae58019f550 # v4.8.0
-        with:
-          registry: ghcr.io
-          username: ${{ github.actor }}
-          password: ${{ secrets.GITHUB_TOKEN }}
-
-      - name: Build and push image
-        uses: docker/build-push-action@c3c9e263c25d99ce0380d002d59b67737d91b0dc # v7.4.0
-        with:
-          context: .
-          file: Dockerfile.release
-          push: true
-          platforms: linux/amd64,linux/arm64
-          tags: |
-            ghcr.io/brig-id/grove:${{ github.ref_name }}
-            ghcr.io/brig-id/grove:latest

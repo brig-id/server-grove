@@ -1,0 +1,165 @@
+name: Release
+
+# A release of grove, asked for by hand: nothing releases on a merge.
+#
+#   Actions → Release → Run workflow, on main
+#   or, from the workspace:  brigid release cut grove
+#
+# 1. plan     the version and the notes, from what was merged since the last
+#             release here and in crypto, the core and the interface. No
+#             release when nothing changed for the people who run the server
+#             (unless `force`), and none from a commit of main that is not
+#             green.
+# 2. build    ci.yml on that commit, with the version written into what is
+#             built: every test, the static binaries, the image.
+# 3. publish  the image, then the GitHub Release with the binaries, and the
+#             tag with it: LAST. A release that fails on the way leaves no
+#             tag and uses no number; run it again.
+#
+# The version is the tag: no file of the repository holds it, and there is no
+# CHANGELOG.md. The notes are on the GitHub Release.
+
+on:
+  workflow_dispatch:
+    inputs:
+      bump:
+        description: "The step: auto reads it from the commits (before 1.0: a patch, a minor for a break)."
+        type: choice
+        options: [auto, patch, minor, major]
+        default: auto
+      force:
+        description: Release even when nothing changed for the people who run the server.
+        type: boolean
+        default: false
+      dry-run:
+        description: Plan and build, publish nothing.
+        type: boolean
+        default: false
+
+permissions:
+  contents: read
+
+concurrency:
+  group: release
+  cancel-in-progress: false
+
+jobs:
+  plan:
+    uses: brig-id/.github/.github/workflows/release-plan.yml@main
+    permissions:
+      contents: read
+      actions: read
+    with:
+      bump: ${{ inputs.bump }}
+      force: ${{ inputs.force }}
+
+  build:
+    needs: plan
+    if: needs.plan.outputs.needed == 'true'
+    uses: ./.github/workflows/ci.yml
+    with:
+      version: ${{ needs.plan.outputs.version }}
+    secrets: inherit
+
+  publish:
+    name: Publish (image, binaries, then the tag)
+    needs: [plan, build]
+    # Only ever from the button (or `brigid release cut`), and not in a dry run.
+    if: ${{ github.event_name == 'workflow_dispatch' && !inputs.dry-run }}
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+      packages: write
+      id-token: write
+      attestations: write
+    env:
+      VERSION: ${{ needs.plan.outputs.version }}
+      TAG: ${{ needs.plan.outputs.tag }}
+    steps:
+      - name: Checkout server-grove
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: Refuse anything but main
+        # The VM deploys the highest vX.Y.Z image on its own: a release is
+        # only ever made of a commit of main.
+        run: test "$GITHUB_REF" = refs/heads/main
+
+      - name: The binaries
+        uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
+        with:
+          pattern: grove-*
+          path: artifacts
+
+      - name: The notes
+        uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
+        with:
+          name: release-notes
+          path: notes
+
+      - name: The files
+        run: |
+          # What the SBOM reads says the version of the release too.
+          scripts/set-version.sh "$VERSION"
+          mkdir -p release bin/data
+          for pair in amd64:x86_64 arm64:aarch64; do
+            # No version in the name: releases/latest/download/<name> is then
+            # always the newest, which is how docs/install.md installs and
+            # updates.
+            cp "artifacts/grove-${pair%%:*}/grove" "release/grove-linux-${pair##*:}"
+            # The build context of Dockerfile.release.
+            cp "artifacts/grove-${pair%%:*}/grove" "bin/grove-${pair%%:*}"
+          done
+          chmod 755 release/*
+          test "$(release/grove-linux-x86_64 --version)" = "grove $VERSION"
+          (cd release && sha256sum grove-* > SHA256SUMS)
+          cat release/SHA256SUMS
+          {
+            cat notes/notes.md
+            echo
+            echo "Each binary runs on any Linux of its architecture: it links nothing."
+            echo "Check it with \`sha256sum -c SHA256SUMS\` and \`gh attestation verify <file> --repo $GITHUB_REPOSITORY\`."
+          } > notes.md
+
+      - name: SBOM (what the binaries are made of)
+        uses: anchore/sbom-action@66cbf4bc1f1c0d2edc94016e65bc221b6bb0ad6c # v0.24.3
+        with:
+          path: .
+          format: spdx-json
+          output-file: release/grove.spdx.json
+          upload-artifact: false
+          upload-release-assets: false
+
+      - name: Provenance
+        uses: actions/attest-build-provenance@4d101475d8b20a2381f78447822ac1eab6504dd8 # v4.2.2
+        with:
+          subject-path: release/grove-linux-*
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@f87e5991a6d7451dcb8d9637bfbc97413f497069 # v4.4.1
+
+      - name: Log in to GitHub Container Registry
+        uses: docker/login-action@8aa5831fb8d48d8f76594c7ddde61ae58019f550 # v4.8.0
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Build and push the image
+        uses: docker/build-push-action@c3c9e263c25d99ce0380d002d59b67737d91b0dc # v7.4.0
+        with:
+          context: .
+          file: Dockerfile.release
+          push: true
+          platforms: linux/amd64,linux/arm64
+          tags: |
+            ghcr.io/brig-id/grove:${{ needs.plan.outputs.tag }}
+            ghcr.io/brig-id/grove:latest
+
+      - name: The GitHub Release, and its tag
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          gh release create "$TAG" release/* --target "$GITHUB_SHA" \
+            --title "grove $VERSION" --notes-file notes.md
